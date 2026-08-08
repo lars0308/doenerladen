@@ -75,8 +75,17 @@
     });
   };
 
-  /* run reveals once DOM + gsap are ready */
+  /* run reveals once DOM + gsap are ready; if GSAP failed to load
+     (slow network, blocked CDN, ad-blocker), fall back to showing
+     the [data-reveal] content immediately instead of leaving it
+     permanently hidden. */
   document.addEventListener("DOMContentLoaded", function () {
-    if (window.gsap) window.LDH.initReveals();
+    if (window.gsap) {
+      window.LDH.initReveals();
+    } else {
+      document.querySelectorAll("[data-reveal]").forEach(function (el) {
+        el.style.visibility = "visible";
+      });
+    }
   });
 })();
