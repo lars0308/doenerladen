@@ -3,57 +3,9 @@
    Handgemacht, warm, erdig. Keine Ampelfarben, kein 08/15.
    ========================================================= */
 
-/* ---------- Fonts (self-hosted, DSGVO-freundlich) ---------- */
-@font-face {
-  font-family: "Fraunces";
-  src: url("../fonts/fraunces-latin-400-normal.woff2") format("woff2");
-  font-weight: 400; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: "Fraunces";
-  src: url("../fonts/fraunces-latin-500-normal.woff2") format("woff2");
-  font-weight: 500; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: "Fraunces";
-  src: url("../fonts/fraunces-latin-600-normal.woff2") format("woff2");
-  font-weight: 600; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: "Fraunces";
-  src: url("../fonts/fraunces-latin-600-italic.woff2") format("woff2");
-  font-weight: 600; font-style: italic; font-display: swap;
-}
-@font-face {
-  font-family: "Fraunces";
-  src: url("../fonts/fraunces-latin-700-normal.woff2") format("woff2");
-  font-weight: 700; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: "Fraunces";
-  src: url("../fonts/fraunces-latin-900-normal.woff2") format("woff2");
-  font-weight: 900; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: "Karla";
-  src: url("../fonts/karla-latin-400-normal.woff2") format("woff2");
-  font-weight: 400; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: "Karla";
-  src: url("../fonts/karla-latin-500-normal.woff2") format("woff2");
-  font-weight: 500; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: "Karla";
-  src: url("../fonts/karla-latin-600-normal.woff2") format("woff2");
-  font-weight: 600; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: "Karla";
-  src: url("../fonts/karla-latin-700-normal.woff2") format("woff2");
-  font-weight: 700; font-style: normal; font-display: swap;
-}
+/* Fonts are self-hosted via next/font/local (see src/app/fonts.ts) —
+   no Google Fonts, no external requests. Font-face rules + swap
+   behaviour are generated automatically. */
 
 /* ---------- Tokens ---------- */
 :root{
@@ -74,8 +26,8 @@
   --line:       rgba(58,32,20,.14);
   --line-light: rgba(255,250,240,.22);
 
-  --font-display: "Fraunces", "Iowan Old Style", serif;
-  --font-body: "Karla", -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-fraunces), "Iowan Old Style", serif;
+  --font-body: var(--font-karla), -apple-system, "Segoe UI", sans-serif;
 
   --container: 1240px;
   --gutter: clamp(20px, 5vw, 64px);
@@ -382,9 +334,6 @@ p{ margin:0 0 1em; }
   border: 1px solid var(--line);
 }
 
-/* scroll reveal base state (GSAP will animate from this) */
-[data-reveal]{ visibility:hidden; }
-
 /* Ornament divider — dezenter, an türkische Fliesenmuster angelehnter Trenner */
 .ornament-divider{
   height: 16px;
@@ -395,6 +344,22 @@ p{ margin:0 0 1em; }
 }
 .section--coal + .ornament-divider,
 .ornament-divider + .section--coal{ opacity:.65; }
+
+/* Subtle one-time entrance on load — CSS only, no animation library.
+   Skipped entirely for prefers-reduced-motion. */
+@keyframes fade-in{ from{ opacity:0; } to{ opacity:1; } }
+@media (prefers-reduced-motion: no-preference){
+  .hero .eyebrow--light, .hero__title, .hero__motto, .hero__desc, .hero__actions, .hero__media, .hero__badge{
+    animation: fade-in .6s ease both;
+  }
+  .hero__title{ animation-delay:.08s; }
+  .hero__motto{ animation-delay:.18s; }
+  .hero__desc{ animation-delay:.24s; }
+  .hero__actions{ animation-delay:.3s; }
+  .hero__media{ animation-delay:.12s; }
+  .hero__badge--1{ animation-delay:.4s; }
+  .hero__badge--2{ animation-delay:.48s; }
+}
 
 /* =========================================================
    HOME — Hero
@@ -443,6 +408,8 @@ p{ margin:0 0 1em; }
 .hero__stats li{ display:flex; flex-direction:column; }
 .hero__stats b{ font-family:var(--font-display); font-size:1.9rem; color: var(--terracotta); }
 .hero__stats span{ font-size:.78rem; text-transform:uppercase; letter-spacing:.08em; color: var(--coal-soft); }
+.hero__stats a{ display:contents; color:inherit; }
+.hero__stats a:hover b{ color: var(--terracotta-dark); }
 
 .hero__visual{ position:relative; display:flex; justify-content:center; }
 .hero__media{
@@ -499,6 +466,7 @@ p{ margin:0 0 1em; }
 }
 @media (max-width:640px){ .build__num{ width:auto; } }
 .build__shape{
+  position:relative;
   flex: none;
   width:140px; height:110px;
   border-radius: 50% 45% 50% 45% / 45% 50% 45% 50%;
@@ -535,7 +503,7 @@ p{ margin:0 0 1em; }
   padding: 22px;
   position:relative;
 }
-.mcard--big{ grid-row: span 2; display:flex; flex-direction:column; justify-content:center; background: linear-gradient(160deg, var(--terracotta-dark), #6d2913); }
+.mcard--big{ grid-row: span 2; display:flex; flex-direction:column; justify-content:center; background: var(--terracotta-dark); }
 .mcard__num{
   position:absolute; top:14px; right:16px;
   font-family:var(--font-display); font-weight:700;
@@ -552,6 +520,17 @@ p{ margin:0 0 1em; }
   display:grid; grid-template-columns: 1.1fr .9fr; gap: clamp(30px,5vw,60px); align-items:start;
 }
 @media (max-width: 860px){ .location__grid{ grid-template-columns:1fr; } }
+.status-badge{
+  display:inline-flex; align-items:center; gap:.55em;
+  font-size:.78rem; font-weight:700; letter-spacing:.02em;
+  padding:.4em .85em;
+  border-radius:999px;
+  margin-bottom:16px;
+}
+.status-badge::before{ content:""; width:7px; height:7px; border-radius:50%; background:currentColor; flex-shrink:0; }
+.status-badge--open{ background: rgba(116,128,74,.14); color: var(--olive-dark); }
+.status-badge--closed{ background: rgba(182,67,43,.12); color: var(--terracotta-dark); }
+
 .hours-card h3{ margin-bottom:14px; }
 .hours-table{ width:100%; border-collapse:collapse; }
 .hours-table td{ padding:6px 0; font-size:.95rem; }
@@ -600,7 +579,7 @@ p{ margin:0 0 1em; }
   border-bottom: 1px dashed var(--line);
 }
 .dish:last-child{ border-bottom:none; }
-.dish--signature{ background: linear-gradient(90deg, rgba(193,78,44,.06), transparent); border-radius:8px; }
+.dish--signature{ background: rgba(193,78,44,.07); border-radius:8px; }
 .dish__num{ font-family:var(--font-display); font-weight:700; color: var(--terracotta); font-size:1rem; text-align:center; }
 .dish__body h3{ font-size:1.02rem; font-weight:600; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .dish__body sup{ font-size:.62em; color: var(--coal-soft); }
