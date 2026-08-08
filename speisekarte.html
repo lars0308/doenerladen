@@ -334,7 +334,14 @@
         if (e.isIntersecting) {
           links.forEach(function (l) { l.classList.remove("is-active"); });
           var link = map[e.target.id];
-          if (link) { link.classList.add("is-active"); link.scrollIntoView({ inline: "center", behavior: "smooth", block: "nearest" }); }
+          if (link) {
+            link.classList.add("is-active");
+            var scrollBox = link.closest(".cat-nav__scroll");
+            if (scrollBox) {
+              var target = link.offsetLeft - (scrollBox.clientWidth - link.offsetWidth) / 2;
+              scrollBox.scrollTo({ left: target, behavior: "smooth" });
+            }
+          }
         }
       });
     }, { rootMargin: "-40% 0px -55% 0px" });
