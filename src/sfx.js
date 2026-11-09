@@ -67,6 +67,13 @@ const Sfx = (() => {
     boss: () => { tone(80, 0.9, 'sawtooth', 0.16, -20); tone(85, 0.9, 'square', 0.1, -20); },
     select: () => tone(660, 0.07, 'square', 0.08),
     confirm: () => { tone(520, 0.07, 'square', 0.09); tone(880, 0.12, 'square', 0.09, 0, 0.07); },
+    heal: () => { [523, 659, 784, 1046].forEach((q, i) => tone(q, 0.14, 'triangle', 0.12, 0, i * 0.07)); },
+    burp: () => { tone(110, 0.35, 'sawtooth', 0.14, -50); tone(90, 0.3, 'square', 0.08, 30, 0.05); },
+    super: () => { noise(0.3, 0.2, 400); tone(180, 0.35, 'sawtooth', 0.18, 500); tone(540, 0.25, 'square', 0.1, 300, 0.05); },
+    boing: () => { tone(200, 0.4, 'sine', 0.2, 600); tone(300, 0.3, 'triangle', 0.1, 400, 0.05); },
+    power: () => { [392, 523, 659, 784, 1046, 1318].forEach((q, i) => tone(q, 0.1, 'square', 0.09, 0, i * 0.06)); },
+    splat: () => { noise(0.14, 0.14, 700); tone(180, 0.12, 'sine', 0.12, -90); },
+    honk: () => { tone(330, 0.12, 'sawtooth', 0.12); tone(310, 0.2, 'sawtooth', 0.12, 0, 0.1); },
     talk: () => tone(240 + Math.random() * 160, 0.04, 'square', 0.04),
   };
 

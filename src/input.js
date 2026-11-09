@@ -52,8 +52,8 @@ class Ctrl {
 
 // Menü-Navigation: alle Geräte zusammen
 class MenuNav {
-  constructor(scene) {
-    this.scene = scene;
+  constructor(scene, opt = {}) {
+    this.scene = scene; this.opt = opt;
     const K = Phaser.Input.Keyboard.KeyCodes;
     this.k = scene.input.keyboard.addKeys({
       up: K.UP, down: K.DOWN, left: K.LEFT, right: K.RIGHT, w: K.W, s: K.S, a: K.A, d: K.D,
@@ -73,7 +73,7 @@ class MenuNav {
       const ax = p.axes[0] || 0, ay = p.axes[1] || 0;
       cur.up = cur.up || b(12) || ay < -0.6; cur.down = cur.down || b(13) || ay > 0.6;
       cur.left = cur.left || b(14) || ax < -0.6; cur.right = cur.right || b(15) || ax > 0.6;
-      cur.ok = cur.ok || b(0) || b(9); cur.back = cur.back || b(1);
+      cur.ok = cur.ok || b(0) || b(9); if (!this.opt.noPadBack) cur.back = cur.back || b(1); else cur.back = cur.back || b(8);
     }
     const out = {};
     for (const key in cur) out[key] = cur[key] && !this.prev[key];

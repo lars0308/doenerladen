@@ -59,21 +59,43 @@ function nameSprite(name, css) {
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true }));
   sp.scale.set(2.0, 0.5, 1); sp.renderOrder = 10; return sp;
 }
-// Saugdüse: Rucksack-Tank mit Schlauch und Trichter (zeigt in +Z)
+// Saugdüse in der linken Hand, Schlauch zur Flasche (Tank) auf dem Rücken. Zeigt in +Z.
 function makeVacuum(css) {
   const col = new THREE.Color(css), M = (c, o) => new THREE.MeshLambertMaterial(Object.assign({ color: c }, o || {}));
   const g = new THREE.Group();
-  const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.42, 20), M(col)); tank.position.set(0, 0.55, -0.3); g.add(tank);
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), M(col)); cap.position.set(0, 0.76, -0.3); g.add(cap);
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.06, 20), M(0xffffff)); band.position.set(0, 0.55, -0.3); g.add(band);
-  const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0.45, -0.32), new THREE.Vector3(0.28, 0.32, -0.15), new THREE.Vector3(0.26, 0.38, 0.18), new THREE.Vector3(0.1, 0.42, 0.36)]);
-  g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.035, 8), M(0x3a3f4d)));
-  const nz = new THREE.Group(); nz.position.set(0.1, 0.42, 0.34); g.add(nz);
-  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.2, 12), M(0x3a3f4d)); handle.rotation.x = Math.PI / 2; handle.position.z = 0.1; nz.add(handle);
-  const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.08, 0.28, 28, 1, true), M(col, { side: THREE.DoubleSide, emissive: 0x000000 })); cone.rotation.x = Math.PI / 2; cone.position.z = 0.3; nz.add(cone);
-  const inner = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.065, 0.27, 28, 1, true), M(0x4a4560, { side: THREE.BackSide, emissive: 0x1a1830 })); inner.rotation.x = Math.PI / 2; inner.position.z = 0.3; nz.add(inner);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.035, 10, 28), M(0xffffff)); ring.position.z = 0.44; nz.add(ring);
-  g.userData = { cone, ring, nz }; return g;
+  // Flasche: Glas + Füllung (wächst mit dem gesammelten Müll)
+  const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.52, 20), M(0xcfe8ff, { transparent: true, opacity: 0.32, depthWrite: false })); glass.position.set(0, 0.58, -0.32); glass.renderOrder = 3; g.add(glass);
+  const fill = new THREE.Mesh(new THREE.CylinderGeometry(0.165, 0.165, 0.46, 20), M(0x8a8f99)); fill.position.set(0, 0.36, -0.32); g.add(fill);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.07, 20), M(col)); base.position.set(0, 0.31, -0.32); g.add(base);
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.2, 0.1, 16), M(col)); top.position.set(0, 0.88, -0.32); g.add(top);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), M(0xffffff)); knob.position.set(0, 0.97, -0.32); g.add(knob);
+  const hose = []; for (let i = 0; i < 12; i++) { const s = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), M(0x3a3f4d)); g.add(s); hose.push(s); }
+  const nz = new THREE.Group(); nz.position.set(0.3, 0.42, 0.2); g.add(nz);
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.2, 12), M(0x3a3f4d)); handle.rotation.x = Math.PI / 2; handle.position.z = 0.05; nz.add(handle);
+  const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.08, 0.28, 28, 1, true), M(col, { side: THREE.DoubleSide, emissive: 0x000000 })); cone.rotation.x = Math.PI / 2; cone.position.z = 0.25; nz.add(cone);
+  const inner = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.065, 0.27, 28, 1, true), M(0x4a4560, { side: THREE.BackSide, emissive: 0x1a1830 })); inner.rotation.x = Math.PI / 2; inner.position.z = 0.25; nz.add(inner);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.035, 10, 28), M(0xffffff)); ring.position.z = 0.4; nz.add(ring);
+  g.userData = { cone, ring, nz, fill, glass, hose, tankTop: new THREE.Vector3(0, 0.86, -0.32) };
+  updateVac(g, new THREE.Vector3(0.3, 0.42, 0.2), 0, false, 0.4);
+  return g;
+}
+const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3();
+// Düse folgt der Hand, Schlauch hängt durch, Flasche zeigt den Füllstand
+function updateVac(vac, hand, time, sucking, frac) {
+  const u = vac.userData, sc = vac.scale.x || 1;
+  u.nz.position.set(hand.x / sc, hand.y / sc + (sucking ? Math.sin(time / 55) * 0.025 : Math.sin(time / 420) * 0.01), hand.z / sc + 0.12);
+  u.nz.rotation.set(-0.1 + (sucking ? Math.sin(time / 70) * 0.06 : Math.sin(time / 500) * 0.03), (sucking ? Math.sin(time / 90) * 0.04 : 0), 0);
+  const a = u.tankTop, b = _v1.copy(u.nz.position), m = _v2.set((a.x + b.x) / 2 + 0.28, Math.min(a.y, b.y) - 0.05, (a.z + b.z) / 2);
+  u.hose.forEach((s, i) => { const t = i / (u.hose.length - 1), w = (1 - t) * (1 - t), q = 2 * (1 - t) * t, e = t * t; s.position.set(a.x * w + m.x * q + b.x * e, a.y * w + m.y * q + b.y * e, a.z * w + m.z * q + b.z * e); });
+  const f = Math.max(0.03, Math.min(1, frac)); u.fill.scale.y = f; u.fill.position.y = 0.335 + 0.23 * f;
+  const full = frac >= 0.999; u.fill.material.color.setHex(full ? 0x7dff8a : (frac > 0.66 ? 0xb8a56a : 0x8a8f99)); u.fill.material.emissive.setHex(full ? (Math.floor(time / 160) % 2 ? 0x1a8a3a : 0x0a4a1a) : 0x000000);
+  u.ring.scale.setScalar(sucking ? 1 + Math.sin(time / 60) * 0.12 : 1); u.cone.material.emissive.setHex(sucking ? 0x335577 : 0x000000);
+}
+const _hv = new THREE.Vector3();
+function handLocal(model, parent, out) {
+  const bone = model.userData.armL || (model.userData.armL = model.getObjectByName('arm-left'));
+  if (!bone) return out.set(0.3, 0.42, 0.2);
+  bone.getWorldPosition(out); parent.worldToLocal(out); out.x += 0.05; out.y -= 0.12; return out;
 }
 
 function cloneMats(o) { if (o.material) o.material = Array.isArray(o.material) ? o.material.map(m => m.clone()) : o.material.clone(); }
@@ -190,7 +212,9 @@ class View3D {
     this.chain = []; for (let i = 0; i < 70; i++) { const m = this.sph(0.09, 0xdfe3ea); m.visible = false; sc.add(m); this.chain.push(m); }
     this.dots = []; for (let i = 0; i < 16; i++) { const m = this.sph(0.09, 0xffffff, { emissive: 0xffffff }); m.visible = false; sc.add(m); this.dots.push(m); }
     this.ringM = [0, 1].map(() => { const m = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.55, 28), new THREE.MeshBasicMaterial({ color: 0x7dff8a, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })); m.rotation.x = -Math.PI / 2; m.position.y = 0.06; m.visible = false; sc.add(m); return m; });
-    this.sdots = [0, 1].map(() => Array.from({ length: 8 }, () => { const m = this.sph(0.06, 0xffffff, { emissive: 0xffffff }); m.visible = false; sc.add(m); return m; }));
+    this.sdots = [0, 1].map(() => Array.from({ length: 14 }, () => { const m = this.sph(0.06, 0xffffff, { emissive: 0xffffff }); m.visible = false; sc.add(m); return m; }));
+    this.vort = [0, 1].map(() => Array.from({ length: 6 }, () => { const m = new THREE.Mesh(new THREE.TorusGeometry(1, 0.04, 8, 30), new THREE.MeshBasicMaterial({ color: 0xcfeaff, transparent: true, opacity: 0.5, depthWrite: false })); m.visible = false; sc.add(m); return m; }));
+    this.beam = [0, 1].map(i => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 6, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false })); m.visible = false; sc.add(m); return m; });
     this.zonePool = []; this.ringPool = []; this.bombPool = [];
   }
 
@@ -277,10 +301,13 @@ class View3D {
     const model = makePlayerModel(cfg.color, 'p:character-oobi', 1.25); yawG.add(model);
     const mixer = new THREE.AnimationMixer(model), acts = {};
     a3anims('p:character-oobi').forEach(a => { acts[a.name] = mixer.clipAction(a); });
+    if (acts.die) { acts.die.setLoop(THREE.LoopOnce); acts.die.clampWhenFinished = true; }
     const vac = makeVacuum(col.css); vac.scale.setScalar(1.05); yawG.add(vac);
     const label = nameSprite(cfg.name, col.css); label.position.set(0, 2.05, 0); root.add(label);
+    const help = nameSprite('♥ Hilf mir!', '#ff6a8a'); help.position.set(0, 2.75, 0); help.visible = false; root.add(help);
+    const rev = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.85, 32), new THREE.MeshBasicMaterial({ color: 0xff6a8a, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })); rev.rotation.x = -Math.PI / 2; rev.position.y = 0.08; rev.visible = false; root.add(rev);
     const sh = this.blob(0.62); this.scene.add(sh); this.scene.add(root);
-    return { root, yawG, model, mixer, acts, cur: null, vac, label, sh, yaw: 0, col };
+    return { root, yawG, model, mixer, acts, cur: null, vac, label, help, rev, sh, yaw: 0, col, hand: new THREE.Vector3() };
   }
   anim(pm, name, fade = 0.15) { const a = pm.acts[name]; if (!a || pm.cur === name) return; const o = pm.acts[pm.cur]; a.reset().play(); if (o) a.crossFadeFrom(o, fade, false); pm.cur = name; }
   enemyMesh(e) {
@@ -350,7 +377,7 @@ class View3D {
     const s = this.s, sc = this.scene, T1 = T;
     s.p.forEach((p, i) => {
       const pm = this.pm[i], root = pm.root, h = (p.z || 0) / T1;
-      root.visible = p.state !== 'held'; pm.sh.visible = p.state === 'normal';
+      root.visible = p.state !== 'held'; pm.sh.visible = p.state === 'normal' || p.state === 'down'; pm.label.visible = p.state !== 'down' || true;
       const fall = p.state === 'falling' ? Math.max(0.05, p.fallT / 0.6) : 1;
       root.position.set(p.x / T1, h - (p.state === 'falling' ? (0.6 - p.fallT) * 2.5 : 0), p.y / T1); root.scale.setScalar(fall);
       const target = Math.atan2(p.aim.x, p.aim.y); let d = target - pm.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; pm.yaw += d * Math.min(1, dt * 14);
@@ -358,14 +385,15 @@ class View3D {
       pm.model.rotation.x = p.fly ? (time / 140) % (Math.PI * 2) : 0;
       const spd = Math.hypot(p.body.velocity.x, p.body.velocity.y), hurt = time < p.lockUntil && !p.fly && !p.hop;
       let a = 'idle';
-      if (p.state === 'falling') a = 'fall'; else if (p.fly || p.hop) a = 'jump'; else if (hurt) a = 'crouch';
+      if (p.state === 'down') a = 'die'; else if (p.state === 'falling') a = 'fall'; else if (p.fly || p.hop) a = 'jump'; else if (hurt) a = 'crouch';
       else if (p.holding) a = 'holding-both'; else if (time < p.shootCd - 80 && time > p.shootCd - 260) a = 'holding-both-shoot';
       else if (p.sucking) a = spd > 40 ? 'walk' : 'holding-both'; else if (spd > 180) a = 'sprint'; else if (spd > 30) a = 'walk';
       this.anim(pm, a); pm.mixer.update(dt * (a === 'walk' ? Math.max(0.7, spd / 150) : a === 'sprint' ? 1.1 : 1));
       pm.sh.position.set(p.x / T1, 0.03, p.y / T1); pm.sh.material.opacity = Math.max(0.15, 0.6 - h * 0.25);
       pm.model.visible = !(time < p.inv && Math.floor(time / 70) % 2);
-      const u = pm.vac.userData; u.ring.scale.setScalar(p.sucking ? 1 + Math.sin(time / 60) * 0.12 : 1); u.cone.material.emissive.setHex(p.sucking ? 0x335577 : 0x000000);
-      pm.vac.visible = !p.fly;
+      handLocal(pm.model, pm.yawG, pm.hand); updateVac(pm.vac, pm.hand, time, p.sucking, p.ammo / p.maxAmmo);
+      pm.vac.visible = !p.fly && p.state !== 'down';
+      pm.help.visible = p.state === 'down'; pm.rev.visible = p.state === 'down'; if (p.state === 'down') { pm.rev.scale.setScalar(0.4 + 0.9 * (p.reviveT / 1.5)); pm.help.position.y = 2.75 + Math.sin(time / 200) * 0.08; }
     });
     // Gegner
     const alive = new Set();
@@ -422,7 +450,7 @@ class View3D {
       let m = this.map.get(e);
       if (!m) {
         let o; const kind = e.kind || 'goo';
-        if (grp === s.shotG) o = a3clone(this.foodFor(e.vis.texture.key, e.x, e.y), 1.4);
+        if (grp === s.shotG) { o = a3clone(this.foodFor(e.vis.texture.key, e.x, e.y), e.big ? 2.4 : 1.4); if (e.big) { o.traverse(q => { if (q.isMesh) { cloneMats(q); eachMat(q, mm => { if (mm.emissive) mm.emissive.setHex(0x886600); }); } }); } }
         else if (kind === 'fire') o = this.sph(0.26, 0xff8a2e, { emissive: 0xff5a10 });
         else if (kind === 'arrow') { o = new THREE.Group(); const sh = this.cyl(0.03, 0.03, 0.7, 0xcaa46a); sh.rotation.x = Math.PI / 2; o.add(sh); this.place(this.cone(0.07, 0.18, 0xdde3ea, 8), 0, 0, 0.42, o).rotation.x = Math.PI / 2; }
         else if (kind === 'bomb') o = a3clone('p:bomb', 1.4); else if (kind === 'red') o = this.sph(0.2, 0xff6a6a, { emissive: 0xaa2020 }); else o = this.sph(0.18, 0x8cf06a, { emissive: 0x2a8a20 });
@@ -440,6 +468,10 @@ class View3D {
       }
     };
     sync(s.crateList, o => { const c = a3clone(o.loot ? 'p:crate-item' : 'p:crate', 1.9); c.rotation.y = (o.x * 7 % 3) * 0.1; return c; }, () => 0);
+    sync(s.foods, o => { const g = new THREE.Group(), md = { apple: 'f:apple', donut: 'f:donut-sprinkles', cupcake: 'f:cupcake', burger: 'f:burger', pizza: 'f:pizza', hotdog: 'f:hot-dog', cake: 'f:cake-birthday' }[o.kind] || 'f:apple'; const f = a3clone(md, 2.4); g.add(f); const h = a3clone('p:heart', 2.2); h.position.y = 0.95; g.add(h); const rg = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.03, 8, 24), new THREE.MeshBasicMaterial({ color: 0xff6a8a })); rg.rotation.x = Math.PI / 2; rg.position.y = 0.05; g.add(rg); g.userData.h = h; return g; }, (o, t) => 0.2 + Math.sin(t / 300 + o.x) * 0.07);
+    for (const f of s.foods) { const m = this.map.get(f); if (m) { m.o.rotation.y = time / 500; m.o.userData.h.rotation.y = -time / 300; m.o.userData.h.position.y = 0.95 + Math.sin(time / 250) * 0.08; } }
+    sync(s.bins, o => { const g = new THREE.Group(); this.place(this.cyl(0.42, 0.36, 0.9, 0x2fa84f), 0, 0.45, 0, g); this.place(this.cyl(0.46, 0.46, 0.1, 0x1d7a38), 0, 0.92, 0, g); this.place(this.cyl(0.3, 0.3, 0.06, 0x16301c), 0, 0.97, 0, g); const rc = this.mesh(new THREE.TorusGeometry(0.2, 0.04, 8, 20), 0xffffff); rc.position.set(0, 0.5, 0.4); g.add(rc); const ar = this.mesh(new THREE.ConeGeometry(0.1, 0.2, 3), 0xffffff); ar.position.set(0, 0.5, 0.42); ar.rotation.z = Math.PI; g.add(ar); g.scale.setScalar(1.35); return g; }, () => 0);
+    for (const bn of s.bins) { const m = this.map.get(bn); if (m) { const k = Math.max(0, 1 - (time - bn.t0) / 300); m.o.scale.setScalar(1.35 * (1 + 0.18 * Math.sin(k * 6.28) * k)); } }
     sync(s.coinsA, o => (o.val > 1 ? a3clone('p:jewel', 3.2) : a3clone('p:coin-gold', 2.2)), (o, t) => 0.35 + Math.sin(t / 300 + o.x) * 0.06);
     sync(s.pickups, o => a3clone(this.foodFor(o.texture.key, o.x, o.y), 1.5), (o, t) => 0.05 + Math.abs(Math.sin(t / 400 + o.x)) * 0.12);
     for (const c of s.coinsA) { const m = this.map.get(c); if (m) m.o.rotation.y = time / 300 + c.x; }
@@ -489,13 +521,29 @@ class View3D {
   drawAim(time, dt) {
     const s = this.s; let shown = false;
     s.p.forEach((p, i) => {
-      const on = p.sucking && p.state === 'normal', sd = this.sdots[i];
-      sd.forEach((m, k) => { m.visible = on; if (on) { const f = ((time / 500 + k / 8) % 1), r = 3.4 * (1 - f) + 0.3, a = Math.atan2(p.aim.y, p.aim.x) + (k % 2 ? 1 : -1) * (0.15 + (k * 0.09 % 0.5)) * (1 - f * 0.5); m.position.set(p.x / T + Math.cos(a) * r, 0.5, p.y / T + Math.sin(a) * r); m.scale.setScalar(0.6 + (1 - f) * 0.8); } });
+      const on = p.sucking && p.state === 'normal', sd = this.sdots[i], vt = this.vort[i];
+      const ax = p.aim.x, az = p.aim.y, hx = p.x / T + ax * 0.5, hz = p.y / T + az * 0.5;
+      // Wirbel: Ringe ziehen sich zur Düse zusammen, Funken umkreisen die Achse
+      vt.forEach((m, k) => {
+        m.visible = on; if (!on) return;
+        const f = ((time / 420 + k / 6) % 1), dist = 3.6 * (1 - f) + 0.3, r = 0.2 + dist * 0.38;
+        m.position.set(p.x / T + ax * dist, 0.55, p.y / T + az * dist);
+        m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(ax, 0, az)); m.rotateZ(time / 160 + k);
+        m.scale.set(r, r, r); m.material.opacity = 0.15 + 0.55 * (1 - f) * f * 4 * 0.5;
+      });
+      sd.forEach((m, k) => {
+        m.visible = on; if (!on) return;
+        const f = ((time / 520 + k / 14) % 1), dist = 3.6 * (1 - f) + 0.3, ang = time / 130 + k * 0.9, r = 0.15 + dist * 0.32;
+        const px = -az, pz = ax;   // senkrecht zur Zielrichtung
+        m.position.set(p.x / T + ax * dist + px * Math.cos(ang) * r, 0.55 + Math.sin(ang) * r, p.y / T + az * dist + pz * Math.cos(ang) * r);
+        m.scale.setScalar(0.5 + (1 - f) * 0.9);
+      });
       const ring = this.ringM[i], pv = p.prev;
       if (p.holding && pv && p.state === 'normal') {
-        shown = true; ring.visible = true; ring.position.set(pv.lx / T, 0.07, pv.ly / T); ring.material.color.setHex(pv.bad ? 0xff5a5a : 0x7dff8a); ring.scale.setScalar(1 + Math.sin(time / 100) * 0.08);
+        shown = true; ring.visible = true; ring.position.set(pv.lx / T, 0.07, pv.ly / T); ring.material.color.setHex(pv.bad ? 0xff5a5a : 0x7dff8a); ring.scale.setScalar(1.5 + Math.sin(time / 100) * 0.1);
+        const bm = this.beam[i]; bm.visible = true; bm.position.set(pv.lx / T, 3, pv.ly / T); bm.material.color.set(pv.bad ? 0xff5a5a : (PLAYER_COLORS.find(c => c.id === Cfg.players[1 - i].color) || {}).css || 0xffffff); bm.material.opacity = 0.28 + Math.sin(time / 120) * 0.08;
         for (let k = 0; k < this.dots.length; k++) { const t = (k + 1) / (this.dots.length + 1), m = this.dots[k]; m.visible = true; m.position.set((p.x + (pv.lx - p.x) * t) / T, 0.5 + Math.sin(t * Math.PI) * 1.2, (p.y + (pv.ly - p.y) * t) / T); }
-      } else ring.visible = false;
+      } else { ring.visible = false; this.beam[i].visible = false; }
     });
     if (!shown) this.dots.forEach(m => m.visible = false);
   }
@@ -527,7 +575,8 @@ class View3D {
     const k = Math.min(1, dt * (s.bossStarted ? 2.2 : 4.5));
     this.cx += (tx - this.cx) * k; this.cz += (tz - this.cz) * k; this.ch += (h - this.ch) * k; this.dz = (this.dz === undefined ? dz : this.dz + (dz - this.dz) * k);
     let ox = 0, oy = 0; if (this.shakeT > 0) { this.shakeT -= dt; ox = (Math.random() - 0.5) * this.shakeI * 0.05; oy = (Math.random() - 0.5) * this.shakeI * 0.05; }
-    c.position.set(this.cx + ox, this.ch + oy, this.cz + this.dz); c.lookAt(this.cx + ox, 0, this.cz - 0.6);
+    c.position.set(this.cx + ox, this.ch + oy, this.cz + this.dz); c.lookAt(this.cx + ox, 0, this.cz - 0.6); c.updateMatrixWorld(true);
+    s.hint = s.p.map((p, i) => { const q = this.project(p.x, p.y, 1.0), off = q.x < 50 || q.x > W - 50 || q.y < 120 || q.y > H - 100; return { idx: i, off, x: Math.max(60, Math.min(W - 60, q.x)), y: Math.max(130, Math.min(H - 120, q.y)), ang: Math.atan2(q.y - H / 2, q.x - W / 2), dist: Math.round(Math.hypot(p.x - s.p[1 - i].x, p.y - s.p[1 - i].y) / T) }; });
   }
   dispose() { document.getElementById('three').style.display = 'none'; disposeScene(this.scene); this.r.renderLists.dispose(); }
 }

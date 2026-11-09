@@ -31,6 +31,7 @@ class LevelScene extends Phaser.Scene {
     this.crushers = []; this.lasers = []; this.convs = []; this.cps = []; this.signs = []; this.zones = []; this.rings = []; this.warns = [];
     this.bossObj = null; this.bossStarted = false; this.exitOpen = false; this.lockGate = null;
     this.hearts = 5; this.maxHearts = 5; this.pitSet = new Set(); this.bridged = new Set();
+    this.foods = []; this.bins = []; this.hint = []; this.trashTotal = 0; this.trashGot = 0; this.cleaned = 0;
     this.grid = Array.from({ length: this.gh }, () => new Array(this.gw).fill(0));
     this.cp = { x: def.start[0] * T, y: def.start[1] * T };
 
@@ -39,7 +40,7 @@ class LevelScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, this.gw * T, this.gh * T).setVisible(false);
 
     this.wallG = this.physics.add.staticGroup(); this.gateG = this.physics.add.staticGroup();
-    this.crateG = this.physics.add.staticGroup(); this.targetG = this.physics.add.staticGroup();
+    this.crateG = this.physics.add.staticGroup(); this.targetG = this.physics.add.staticGroup(); this.binG = this.physics.add.staticGroup();
     this.pitBlockG = this.physics.add.staticGroup();
     this.enemyG = this.physics.add.group(); this.shotG = this.physics.add.group(); this.eshotG = this.physics.add.group();
     this.deco = this.add.graphics().setDepth(0.5);
@@ -49,10 +50,13 @@ class LevelScene extends Phaser.Scene {
 
     def.build(this);
     this.finalize();
+    this.autoLitter(def.mini ? 0 : (def.litter !== undefined ? def.litter : Math.min(230, Math.round(this.floorCount / 9))));
+    this.autoFood(def.mini ? 0 : Math.max(2, Math.round(this.floorCount / 120)));
+    this.trashTotal = this.pickups.length;
     this.makePlayers();
     if (def.mini) this.mini = new MiniGames[def.mini](this);
     this.setupColliders();
-    this.nav = new MenuNav(this);
+    this.nav = new MenuNav(this, { noPadBack: true });
     this.v3 = new View3D(this);
     this.scene.launch('Hud', { level: this });
     this.hudS = this.scene.get('Hud');
@@ -69,11 +73,12 @@ class LevelScene extends Phaser.Scene {
   fill(x, y, w, h, v) { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (i >= 0 && j >= 0 && i < this.gw && j < this.gh) this.grid[j][i] = v; }
   at(x, y) { return (x < 0 || y < 0 || x >= this.gw || y >= this.gh) ? 0 : this.grid[y][x]; }
   finalize() {
-    const th = this.theme, g = this.grid;
+    const th = this.theme, g = this.grid; this.floorCount = 0;
     const nearFloor = (x, y, r) => { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (this.at(x + dx, y + dy) !== 0) return true; return false; };
     const wallCells = [], pitCells = [];
     for (let y = 0; y < this.gh; y++) for (let x = 0; x < this.gw; x++) {
       const v = g[y][x];
+      if (v === 1) this.floorCount++;
       if (v === 2) { this.pitSet.add(y * this.gw + x); pitCells.push([x, y]); }
       else if (v === 0 && nearFloor(x, y, 1)) wallCells.push([x, y]);
     }
@@ -102,13 +107,11 @@ class LevelScene extends Phaser.Scene {
   cy(y) { return y * T + T / 2; }
   coin(x, y, val = 1) {
     const c = this.add.image(this.cx(x), this.cy(y) - 6, 'coin').setDepth(this.cy(y)); c.val = val; c.born = this.time.now;
-    this.tweens.add({ targets: c, scaleX: 0.3, yoyo: true, repeat: -1, duration: 500 + Math.random() * 200 });
     this.coinsA.push(c);
   }
   coins(x, y, n, dx = 1, dy = 0) { for (let i = 0; i < n; i++) this.coin(x + i * dx, y + i * dy); }
   trash(x, y) {
     const t = this.add.image(this.cx(x), this.cy(y), 'trash' + Phaser.Math.Between(0, 3)).setDepth(this.cy(y));
-    this.tweens.add({ targets: t, scale: 1.12, yoyo: true, repeat: -1, duration: 600, delay: Math.random() * 400 });
     this.pickups.push(t);
   }
   crate(x, y, loot) {
@@ -167,6 +170,40 @@ class LevelScene extends Phaser.Scene {
   spring(x, y) { this.springsA.push({ x: this.cx(x), y: this.cy(y), cd: 0, t0: -999 }); }
   spawner(x, y, type, period, max) { this.spawners.push({ x: this.cx(x), y: this.cy(y), type, period, max, next: 0, kids: [] }); }
   island(x, y, w, h, pts) { this.floor(x, y, w, h); this.islands.push({ x: x * T, y: y * T, w: w * T, h: h * T, pts, cx: (x + w / 2) * T, cy: (y + h / 2) * T }); }
+  food(x, y, kind) {
+    const K = { apple: 1, donut: 1, cupcake: 2, burger: 2, pizza: 2, hotdog: 2, cake: 3 }, k = kind || Object.keys(K)[Math.floor(Math.random() * 7)];
+    const f = this.add.image(this.cx(x), this.cy(y), 'coin').setVisible(false); f.kind = k; f.heal = K[k]; this.foods.push(f); return f;
+  }
+  bin(x, y) {
+    const b = this.add.image(this.cx(x), this.cy(y), 'crate').setVisible(false); this.physics.add.existing(b, true); b.body.setSize(40, 40); this.binG.add(b); b.t0 = -999; this.bins.push(b);
+  }
+  occupied(px, py, r) {
+    const near = (o, rr) => Math.abs(o.x - px) < rr && Math.abs(o.y - py) < rr;
+    for (const l of [this.coinsA, this.pickups, this.crateList, this.targets, this.plates, this.foods, this.bins, this.cps, this.springsA, this.spawners, this.enemyList]) for (const o of l) if (near(o, r)) return true;
+    for (const g of this.gates) if (px > g.x - 30 && px < g.x + g.displayWidth + 30 && py > g.y - 30 && py < g.y + g.displayHeight + 30) return true;
+    for (const sg of this.signs) if (near(sg.s, r)) return true;
+    for (const sp of this.spikesA) if (px > sp.x - 20 && px < sp.x + sp.displayWidth + 20 && py > sp.y - 20 && py < sp.y + sp.displayHeight + 20) return true;
+    return false;
+  }
+  autoLitter(n) {
+    const rnd = new Phaser.Math.RandomDataGenerator(['muell' + this.lv]); let placed = 0, tries = 0;
+    while (placed < n && tries < n * 40) {
+      tries++; const x = rnd.between(1, this.gw - 2), y = rnd.between(1, this.gh - 2);
+      let ok = true; for (let dx = -1; dx <= 1 && ok; dx++) for (let dy = -1; dy <= 1 && ok; dy++) if (this.at(x + dx, y + dy) !== 1) ok = false;
+      if (!ok || this.occupied(this.cx(x), this.cy(y), 40)) continue;
+      const cluster = rnd.between(1, 3);
+      for (let k = 0; k < cluster; k++) { const px = this.cx(x) + rnd.between(-18, 18) * (k ? 1 : 0), py = this.cy(y) + rnd.between(-18, 18) * (k ? 1 : 0); const t = this.add.image(px, py, 'trash' + rnd.between(0, 3)).setDepth(py); this.pickups.push(t); placed++; }
+    }
+  }
+  autoFood(n) {
+    const rnd = new Phaser.Math.RandomDataGenerator(['essen' + this.lv]); let placed = 0, tries = 0;
+    while (placed < n && tries < 600) {
+      tries++; const x = rnd.between(1, this.gw - 2), y = rnd.between(1, this.gh - 2);
+      let ok = true; for (let dx = -1; dx <= 1 && ok; dx++) for (let dy = -1; dy <= 1 && ok; dy++) if (this.at(x + dx, y + dy) !== 1) ok = false;
+      if (!ok || this.occupied(this.cx(x), this.cy(y), 60) || x < 8) continue;
+      this.food(x, y); placed++;
+    }
+  }
   checkpoint(x, y) {
     const f = this.add.image(this.cx(x), (y + 1) * T - 4, 'flag').setOrigin(0.5, 1).setDepth((y + 1) * T);
     f.cx = this.cx(x); f.cy = this.cy(y); f.hit = false; this.cps.push(f);
@@ -205,7 +242,7 @@ class LevelScene extends Phaser.Scene {
       p.setCollideWorldBounds(true);
       p.noz = this.add.image(p.x, p.y, 'nozzle').setOrigin(0.2, 0.5);
       p.icon = this.add.image(p.x, p.y, i === 0 ? 'zippy_t' : 'knox_t').setScale(0.42).setVisible(false);
-      p.idx = i; p.ctrl = new Ctrl(this, i); p.state = 'normal'; p.aim = { x: 0, y: 1 }; p.ammo = this.kids ? 6 : 3; p.maxAmmo = this.kids ? 10 : 6;
+      p.idx = i; p.ctrl = new Ctrl(this, i); p.state = 'normal'; p.aim = { x: 0, y: 1 }; p.ammo = this.kids ? 8 : 4; p.maxAmmo = this.kids ? 16 : 12; p.hp = 5; p.maxHp = 5; p.reviveT = 0; p.downAt = 0; p.fullMsg = 0;
       Object.assign(p, { inv: 0, shootCd: 0, suckSfx: 0, lockUntil: 0, holder: null, holding: null, heldAt: 0, hop: null, hopCd: 0, fly: null, noSwallow: 0, safeT: 0, ammoRegen: 0, fallT: 0, in: {}, conv: 0 });
       p.lastSafe = { x: p.x, y: p.y };
       this.p.push(p);
@@ -222,6 +259,9 @@ class LevelScene extends Phaser.Scene {
     ph.add.collider(this.shotG, this.gateG, s => this.splat(s));
     ph.add.collider(this.shotG, this.crateG, (s, c) => { this.breakCrate(c); this.splat(s); });
     ph.add.collider(this.shotG, this.targetG, (s, t) => { this.hitTarget(t); this.splat(s); });
+    ph.add.collider(this.shotG, this.binG, (s, b) => { this.binHit(b); this.splat(s); });
+    for (const p of this.p) ph.add.collider(p, this.binG, null, np);
+    ph.add.collider(this.enemyG, this.binG);
     ph.add.collider(this.eshotG, this.wallG, s => this.splat(s, 0xa0f06a));
     ph.add.collider(this.eshotG, this.gateG, s => this.splat(s, 0xa0f06a));
   }
@@ -266,8 +306,13 @@ class LevelScene extends Phaser.Scene {
     this.burst(e.x, e.y - 20, 'puff', 8, 90, 0xdddddd); this.burst(e.x, e.y - 20, 'star', 4, 80);
     this.dropCoin(e.x, e.y, Phaser.Math.Between(1, 2));
     if (Math.random() < (this.kids ? 0.8 : 0.55)) { const t = this.add.image(e.x, e.y, 'trash' + Phaser.Math.Between(0, 3)).setDepth(e.y); this.pickups.push(t); }
+    if (Math.random() < (this.kids ? 0.18 : 0.12)) { const f = this.food(0, 0, Math.random() < 0.3 ? 'burger' : 'apple'); f.x = e.x; f.y = e.y; }
     this.enemyList = this.enemyList.filter(o => o !== e);
     this.killActor(e);
+  }
+  binHit(b) {
+    if (this.time.now - b.t0 < 120) return; b.t0 = this.time.now; this.cleaned++; this.coinCount += 2;
+    Sfx.play('coin'); Sfx.play('pop'); this.burst(b.x, b.y - 30, 'star', 8, 90, 0x7dff8a); this.burst(b.x, b.y - 30, 'puff', 5, 50, 0x7dff8a);
   }
   dropCoin(x, y, n) {
     for (let i = 0; i < n; i++) {
@@ -369,14 +414,25 @@ class LevelScene extends Phaser.Scene {
     v.normalize().scale(300); p.body.setVelocity(v.x, v.y); p.hop = null; p.z = 0;
     Sfx.play('hurt'); this.burst(p.x, p.y - 20, 'star', 5, 60);
     if (p.holding) this.release(p, false);
-    if (!this.kids && !this.mini) { this.hearts--; if (this.hearts <= 0) this.teamDown(); }
+    if (!this.kids && !this.mini) { p.hp = Math.max(0, p.hp - 1); if (p.hp <= 0) this.knockOut(p); }
+  }
+  knockOut(p) {
+    p.state = 'down'; p.downAt = this.time.now; p.reviveT = 0; p.hop = null; p.fly = null; p.z = 0; p.body.setVelocity(0, 0); p.noz.setVisible(false);
+    if (p.holding) this.release(p, false);
+    Sfx.play('hurt'); this.burst(p.x, p.y - 20, 'star', 8, 80);
+    this.toast(Cfg.players[p.idx].name + ' ist K.O.!  Partner: bleib daneben, dann wird er wiederbelebt', 2200);
+    if (this.p.every(q => q.state === 'down')) this.teamDown();
+  }
+  revive(p, hp = 2) {
+    p.state = 'normal'; p.hp = Math.max(1, hp); p.inv = this.time.now + 1500; p.reviveT = 0; p.noz.setVisible(true);
+    Sfx.play('heal'); this.burst(p.x, p.y - 30, 'star', 10, 90, 0xff6a8a); this.toast(Cfg.players[p.idx].name + ' ist wieder da!', 1200);
   }
   teamDown() {
     if (this.downing) return; this.downing = true;
     this.toast('Autsch! Zurück zum letzten Checkpoint…', 1400);
     this.hudCall('fade', 'out', 600);
     this.time.delayedCall(700, () => {
-      this.hearts = this.maxHearts; this.downing = false;
+      this.p.forEach(q => { q.hp = q.maxHp; }); this.downing = false;
       for (const p of this.p) { if (p.holding) this.release(p, false); this.placeAt(p, this.cp.x + p.idx * 40, this.cp.y); }
       if (this.bossObj && this.bossObj.started) this.resetBoss();
       this.hudCall('fade', 'in', 400);
@@ -397,7 +453,7 @@ class LevelScene extends Phaser.Scene {
     this.tweens.add({ targets: p.vis, scale: 0.1, angle: 360, duration: 600 });
   }
   afterFall(p) {
-    if (!this.kids && !this.mini) { this.hearts--; if (this.hearts <= 0) { this.teamDown(); return; } }
+    if (!this.kids && !this.mini) p.hp = Math.max(1, p.hp - 1);
     this.toast(this.kids ? 'Plumps! Weiter geht\'s.' : '', 700);
     this.placeAt(p, p.lastSafe.x, p.lastSafe.y);
   }
@@ -433,6 +489,12 @@ class LevelScene extends Phaser.Scene {
       return;
     }
     if (p.state === 'falling') { p.fallT -= dt; this.syncVis(p); if (p.fallT <= 0) this.afterFall(p); return; }
+    if (p.state === 'down') {
+      const o2 = this.p[1 - p.idx]; b.setVelocity(0, 0); this.syncVis(p);
+      if (o2.state === 'normal' && Math.hypot(o2.x - p.x, o2.y - p.y) < 90) p.reviveT += dt; else p.reviveT = Math.max(0, p.reviveT - dt * 0.6);
+      if (p.reviveT > 1.5 || time - p.downAt > 30000) this.revive(p, 2);
+      return;
+    }
 
     let mx = c.x, my = c.y; const ml = Math.hypot(mx, my);
     if (ml < 0.22) { mx = 0; my = 0; } else if (ml > 1) { mx /= ml; my /= ml; }
@@ -482,7 +544,7 @@ class LevelScene extends Phaser.Scene {
 
     if (!air) {
       const mv = this.onMover(p.x, p.y);
-      if (this.pitAt(p.x, p.y) && !mv) { this.startFall(p); return; }
+      if ((this.pitAt(p.x, p.y) || this.at(Math.floor(p.x / T), Math.floor(p.y / T)) === 0) && !mv) { this.startFall(p); return; }
       if (time > p.safeT && p.state === 'normal') {
         p.safeT = time + 250;
         const ok = [[0, 0], [30, 0], [-30, 0], [0, 30], [0, -30]].every(([dx, dy]) => !this.pitAt(p.x + dx, p.y + dy)) && !mv && !this.wallPx(p.x, p.y);
@@ -500,28 +562,43 @@ class LevelScene extends Phaser.Scene {
     const bo = this.bossObj; if (bo && bo.started && !bo.dead && ov(p, bo.spr)) bo.stomp(p);
   }
   fireTrash(p) {
-    p.ammo--; Sfx.play('shoot');
-    const a = p.aim, x = p.x + a.x * 30, y = p.y + a.y * 20;
-    const s = this.physics.add.sprite(x, y, 'dotp').setAlpha(0).setDepth(1.6); this.shotG.add(s);
-    s.body.setSize(16, 16); s.body.setVelocity(a.x * 700, a.y * 700);
-    s.vis = this.add.image(x, y - 22, 'trash' + Phaser.Math.Between(0, 3)).setDepth(2900); s.z = 22;
-    s.born = this.time.now;
-    this.tweens.add({ targets: s.vis, angle: 360, duration: 500, repeat: -1 });
-    this.burst(x, y - 20, 'puff', 3, 40);
+    const full = p.ammo >= p.maxAmmo, n = full ? 5 : 1;
+    p.ammo = full ? Math.max(0, p.ammo - Math.ceil(p.maxAmmo * 0.5)) : p.ammo - 1; Sfx.play(full ? 'super' : 'shoot');
+    const base = Math.atan2(p.aim.y, p.aim.x);
+    for (let i = 0; i < n; i++) {
+      const ang = base + (n > 1 ? (i - (n - 1) / 2) * 0.2 : 0), dx = Math.cos(ang), dy = Math.sin(ang), x = p.x + dx * 30, y = p.y + dy * 20;
+      const s = this.physics.add.sprite(x, y, 'dotp').setAlpha(0).setDepth(1.6); this.shotG.add(s);
+      s.body.setSize(16, 16); s.body.setVelocity(dx * (full ? 780 : 700), dy * (full ? 780 : 700));
+      s.vis = this.add.image(x, y - 22, 'trash' + Phaser.Math.Between(0, 3)).setVisible(false); s.z = 22; s.dmg = full ? 2 : 1; s.big = full; s.owner = p.idx;
+      s.born = this.time.now;
+    }
+    if (full) { this.shake(120, 0.006); this.burst(p.x + p.aim.x * 30, p.y - 20, 'star', 8, 90); }
+    this.burst(p.x + p.aim.x * 30, p.y - 20, 'puff', 3, 40);
   }
   doSuck(p, o, time, dt) {
     const a = p.aim, mx = p.x + a.x * 26, my = p.y - 6 + a.y * 14;
     const range = 175, cos = Math.cos(Phaser.Math.DegToRad(50));
     if (time > p.suckSfx) { p.suckSfx = time + 120; Sfx.play('suck'); }
     const inCone = (x, y, r) => { const dx = x - mx, dy = y - my, d = Math.hypot(dx, dy); if (d < 55) return true; if (d > r) return false; return (dx * a.x + dy * a.y) / d > cos; };
+    const full = p.ammo >= p.maxAmmo;
     for (const t of this.pickups.slice()) {
       if (!t.active || !inCone(t.x, t.y, range)) continue;
+      if (full) { if (time > p.fullMsg) { p.fullMsg = time + 1600; this.toast('Tank voll!  Schieß den Müll weg (X) oder in eine Tonne', 1400); Sfx.play('empty'); } continue; }
       const d = Math.hypot(mx - t.x, my - t.y) || 1;
-      this.tweens.killTweensOf(t); t.setScale(1);
-      const sp = 520 * dt; t.x += (mx - t.x) / d * Math.min(sp, d); t.y += (my - t.y) / d * Math.min(sp, d); t.setDepth(t.y);
+      const sp = 560 * dt; t.x += (mx - t.x) / d * Math.min(sp, d); t.y += (my - t.y) / d * Math.min(sp, d); t.setDepth(t.y);
       if (d < 26) {
-        if (p.ammo < p.maxAmmo) { p.ammo++; Sfx.play('pickup'); t.destroy(); this.pickups = this.pickups.filter(q => q !== t); }
-        else this.toast('Munition voll!', 600);
+        p.ammo++; this.trashGot++; Sfx.play('pickup'); t.destroy(); this.pickups = this.pickups.filter(q => q !== t);
+        if (p.ammo >= p.maxAmmo) { Sfx.play('burp'); this.toast('Tank VOLL!  Jetzt gibt es Super-Schüsse (X)', 1500); this.burst(p.x, p.y - 40, 'star', 8, 80); }
+      }
+    }
+    for (const f of this.foods.slice()) {
+      if (!f.active || !inCone(f.x, f.y, range)) continue;
+      if (!this.kids && p.hp >= p.maxHp) { if (time > p.fullMsg) { p.fullMsg = time + 1600; this.toast('Dein Leben ist schon voll – heb es dir für später auf!', 1200); } continue; }
+      const d = Math.hypot(mx - f.x, my - f.y) || 1, sp = 520 * dt; f.x += (mx - f.x) / d * Math.min(sp, d); f.y += (my - f.y) / d * Math.min(sp, d);
+      if (d < 26) {
+        if (this.kids) { this.coinCount += 3; } else p.hp = Math.min(p.maxHp, p.hp + f.heal);
+        Sfx.play('heal'); this.burst(p.x, p.y - 40, 'star', 10, 90, 0xff6a8a); this.toast(this.kids ? 'Lecker! +3 Münzen' : 'Lecker! +' + f.heal + ' Leben', 900);
+        f.destroy(); this.foods = this.foods.filter(q => q !== f);
       }
     }
     if (o.state === 'normal' && time > o.noSwallow && !o.fly && !o.hop && inCone(o.x, o.y, 125) && Math.hypot(o.x - p.x, o.y - p.y) < 125) this.swallow(p, o);
@@ -614,10 +691,10 @@ class LevelScene extends Phaser.Scene {
       if (!s.active) continue;
       s.vis.setPosition(s.x, s.y - s.z).setDepth(s.y + 12);
       if (time - s.born > 1000) { this.splat(s); continue; }
-      for (const e of this.enemyList.slice()) if (e.active && ov(s, e)) { this.damageEnemy(e, 1, s.x - s.body.velocity.x * 0.01, s.y - s.body.velocity.y * 0.01); this.splat(s); break; }
+      for (const e of this.enemyList.slice()) if (e.active && ov(s, e)) { this.damageEnemy(e, s.dmg || 1, s.x - s.body.velocity.x * 0.01, s.y - s.body.velocity.y * 0.01); this.splat(s); break; }
       if (!s.active) continue;
       const bo = this.bossObj;
-      if (bo && bo.started && !bo.dead && ov(s, bo.spr)) { bo.hurt(1); this.splat(s); }
+      if (bo && bo.started && !bo.dead && ov(s, bo.spr)) { bo.hurt(s.dmg || 1); this.splat(s); }
     }
     for (const p of this.p) if (p.fly) {
       for (const t of this.targets) if (ov(p, t)) this.hitTarget(t);
@@ -643,7 +720,7 @@ class LevelScene extends Phaser.Scene {
       }
       for (const f of this.cps) if (!f.hit && Math.hypot(p.x - f.cx, p.y - f.cy) < 60) {
         f.hit = true; f.setTexture('flag_on'); this.cp = { x: f.cx, y: f.cy }; Sfx.play('check');
-        this.hearts = Math.min(this.maxHearts, this.hearts + 2); this.toast('Checkpoint!', 900); this.burst(f.x, f.y - 40, 'star', 8, 70);
+        this.p.forEach(q => { if (q.state === 'down') this.revive(q, 3); else { q.hp = Math.min(q.maxHp, q.hp + 2); q.ammo = Math.max(q.ammo, 6); } }); this.toast('Checkpoint!  Leben + Tank aufgefüllt', 1200); this.burst(f.x, f.y - 40, 'star', 8, 70);
       }
       if (p.z < 14 && !p.fly) for (const e of this.enemyList) if (e.active && !e.harmless && ov(p, e)) this.hurtPlayer(p, e.x, e.y);
       if (p.fly) for (const e of this.enemyList.slice()) if (e.active && ov(p, e)) this.damageEnemy(e, 2, p.x, p.y);
@@ -694,7 +771,7 @@ class LevelScene extends Phaser.Scene {
     if (this.done) { if (n.ok || this.p.some(p => p.in.jumpEdge)) this.next(); return; }
     if (this.paused) {
       if (n.ok) this.setPause(false);
-      if (n.back) this.scene.start('Menu');
+      if (n.back || this.p.some(q => q.in.back)) this.scene.start('Menu');
       return;
     }
     if (n.back || this.p.some(p => p.in.startEdge)) { this.setPause(true); return; }
@@ -751,7 +828,7 @@ class LevelScene extends Phaser.Scene {
   finish() {
     if (this.done) return; this.done = true; Sfx.music(null); Sfx.play('win');
     for (const p of this.p) p.body.setVelocity(0, 0);
-    this.hudCall('sign', null); this.hudCall('finish', this.coinCount, Math.round((this.time.now - this.t0) / 1000));
+    this.hudCall('sign', null); this.hudCall('finish', this.coinCount, Math.round((this.time.now - this.t0) / 1000), this.trashGot, this.trashTotal, this.cleaned);
     for (let i = 0; i < 30; i++) this.time.delayedCall(i * 40, () => this.burst(this.p[0].x + Phaser.Math.Between(-300, 300), this.p[0].y + Phaser.Math.Between(-200, 100), 'star', 3, 160));
   }
   endMini(score, stars, label) {

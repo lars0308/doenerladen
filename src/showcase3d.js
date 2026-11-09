@@ -50,7 +50,7 @@ class Showcase3D {
     this.t += dt; const b = this.camBase;
     const a = Math.sin(time / 4000) * orbit;
     this.cam.position.set(b.x + Math.sin(a) * 4, b.y + Math.sin(time / 3000) * 0.15, b.z * Math.cos(a)); this.cam.lookAt(b.x, b.ly, 0);
-    this.chars.forEach(c => c.mixer.update(dt));
+    this.chars.forEach(c => { c.mixer.update(dt); if (c.vac) { handLocal(c.model, c.root, _hv); updateVac(c.vac, _hv, time, false, 0.45); } });
     this.r.render(this.scene, this.cam);
   }
   dispose() { document.getElementById('three').style.display = 'none'; disposeScene(this.scene); }
