@@ -30,3 +30,9 @@ oder Paare. Auf dem Laptop am Fernseher mit **zwei Controllern** – oder an ein
 ## Technik
 Three.js (3D) + Phaser (Menüs, HUD, Spiellogik). Alle Modelle sind in `src/assets.js` eingebettet (`tools/build_assets.py` erzeugt die Datei aus `assets/packs`),
 deshalb läuft das Spiel auch per Doppelklick. Credits & Lizenzen: [CREDITS.md](CREDITS.md).
+
+## Neu in Phase 2
+- **Springen**: senkrecht nach oben, in der Luft mit dem Stick lenkbar – auf Gegner springen = Stomp.
+- **Saugen**: Müll, Münzen, Essen, Pflanzen/Kürbisse und kleine Gegner werden in die Düse gezogen, schrumpfen und verschwinden. Große Gegner verlieren beim Saugen Leben.
+- **Tank auf dem Rücken** (voll = Super-Schüsse), Tonnen, Essen heilt, Power-ups (Ball, Flügel, Magnet), K.O./Wiederbeleben, Plateaus mit Sprungfeldern, Bonuslevel „Der große Müllberg“.
+- **Scheitern**: Wenn beide K.O. gehen, liegt der Müll seit dem letzten Checkpoint wieder da.

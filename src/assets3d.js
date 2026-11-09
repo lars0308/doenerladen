@@ -7,6 +7,7 @@ function sharedRenderer() {
     const canvas = document.getElementById('three');
     const r = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75)); r.setSize(W, H, false); r.outputEncoding = THREE.sRGBEncoding;
+    r.shadowMap.enabled = localStorage.getItem('muellalarm_noshadow') !== '1'; r.shadowMap.type = THREE.PCFSoftShadowMap;
     sharedRenderer.r = r;
   }
   return sharedRenderer.r;
