@@ -1,0 +1,795 @@
+// Level-Szene in schräger Draufsicht (Zelda-Stil): freie Bewegung, Hopsen über Gräben,
+// Partner einsaugen & über Abgründe werfen, Müll schießen, Rätsel, Endgegner.
+const SPEED = 235, LV = 600, FLY_T = 0.8, HOP_T = 0.46, HOP_V = 400;
+const ENEMY = {
+  walker:  { tex: 'e_walker',  fw: 30, fh: 18, hp: 1, speed: 78,  stomp: true,  chase: 270 },
+  armor:   { tex: 'e_armor',   fw: 34, fh: 20, hp: 3, speed: 58,  stomp: false, chase: 300 },
+  flyer:   { tex: 'e_flyer',   fw: 28, fh: 16, hp: 1, speed: 100, stomp: true,  fly: true, chase: 380 },
+  turret:  { tex: 'e_turret',  fw: 34, fh: 20, hp: 2, speed: 0,   stomp: false, still: true },
+  charger: { tex: 'e_charger', fw: 44, fh: 18, hp: 2, speed: 70,  stomp: true,  charge: true, chase: 380 },
+};
+const ov = (a, b) => { const A = a.body, B = b.body; return A.right > B.left && A.left < B.right && A.bottom > B.top && A.top < B.bottom; };
+const approach = (v, t, a) => (v < t ? Math.min(v + a, t) : Math.max(v - a, t));
+const GCOL = { red: 0xff4d4d, blue: 0x4da6ff, green: 0x4dff88, yellow: 0xffd24d, pink: 0xff7ad9 };
+
+class LevelScene extends Phaser.Scene {
+  constructor() { super('Level'); }
+  init(d) { this.lv = d.level; this.mode = d.mode || 'normal'; this.kids = this.mode === 'kids'; }
+
+  // ───────────────────────── Aufbau ─────────────────────────
+  create() {
+    const def = this.def = LEVELS[this.lv];
+    this.theme = def.theme; this.gw = def.size[0]; this.gh = def.size[1];
+    this.A = def.arena[0]; this.AY = def.arena[1];
+    this.arenaR = { x: this.A * T, y: this.AY * T, w: 26 * T, h: 15 * T };
+    this.t0 = this.time.now; this.coinCount = 0; this.paused = false; this.done = false;
+    this.coinsA = []; this.pickups = []; this.crateList = []; this.enemyList = []; this.groups = {};
+    this.gates = []; this.bridges = []; this.targets = []; this.plates = []; this.spikesA = []; this.moversA = [];
+    this.crushers = []; this.lasers = []; this.convs = []; this.cps = []; this.signs = [];
+    this.bossObj = null; this.bossStarted = false; this.exitOpen = false; this.lockGate = null;
+    this.hearts = 5; this.maxHearts = 5; this.pitSet = new Set(); this.bridged = new Set();
+    this.grid = Array.from({ length: this.gh }, () => new Array(this.gw).fill(0));
+    this.cp = { x: def.start[0] * T, y: def.start[1] * T };
+
+    this.physics.world.gravity.y = 0;
+    this.physics.world.setBounds(0, 0, this.gw * T, this.gh * T);
+    this.cameras.main.setBounds(0, 0, this.gw * T, this.gh * T).setBackgroundColor(shade(THEMES[this.theme].dark, 0.55));
+
+    this.wallG = this.physics.add.staticGroup(); this.gateG = this.physics.add.staticGroup();
+    this.crateG = this.physics.add.staticGroup(); this.targetG = this.physics.add.staticGroup();
+    this.pitBlockG = this.physics.add.staticGroup();
+    this.enemyG = this.physics.add.group(); this.shotG = this.physics.add.group(); this.eshotG = this.physics.add.group();
+    this.deco = this.add.graphics().setDepth(0.5);
+    this.gfx = this.add.graphics().setDepth(1.5);
+    this.fx = this.add.graphics().setDepth(2900);
+    this.chainG = this.add.graphics().setDepth(1.8);
+
+    def.build(this);
+    this.finalize();
+    this.makePlayers();
+    this.setupColliders();
+    this.makeHud();
+
+    this.nav = new MenuNav(this);
+    const cam = this.cameras.main;
+    this.camT = this.add.zone(this.p[0].x, this.p[0].y, 4, 4);
+    cam.startFollow(this.camT, true, 0.12, 0.12);
+    cam.centerOn(this.p[0].x, this.p[0].y);
+    cam.fadeIn(400);
+    Sfx.music(def.music);
+    this.banner(def.name, 0xffffff, 1800);
+    this.events.on('shutdown', () => { Sfx.music(null); });
+  }
+
+  // ── Gelände ──
+  floor(x, y, w, h) { this.fill(x, y, w, h, 1); }
+  pit(x, y, w, h) { this.fill(x, y, w, h, 2); }
+  wall(x, y, w, h) { this.fill(x, y, w, h, 0); }
+  fill(x, y, w, h, v) { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (i >= 0 && j >= 0 && i < this.gw && j < this.gh) this.grid[j][i] = v; }
+  at(x, y) { return (x < 0 || y < 0 || x >= this.gw || y >= this.gh) ? 0 : this.grid[y][x]; }
+  finalize() {
+    const th = this.theme, g = this.grid;
+    const nearFloor = (x, y, r) => { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (this.at(x + dx, y + dy) !== 0) return true; return false; };
+    const wallCells = [], pitCells = [];
+    for (let y = 0; y < this.gh; y++) for (let x = 0; x < this.gw; x++) {
+      const v = g[y][x];
+      if (v === 1) this.add.image(x * T, y * T, ((x + y) % 2 ? 'floorb_' : 'floor_') + th).setOrigin(0).setDepth(0);
+      else if (v === 2) {
+        this.pitSet.add(y * this.gw + x); pitCells.push([x, y]);
+        this.add.image(x * T, y * T, (this.at(x, y - 1) === 2 ? 'pit_' : 'pitc_') + th).setOrigin(0).setDepth(0);
+      } else if (nearFloor(x, y, 2)) {
+        const front = this.at(x, y + 1) !== 0;
+        this.add.image(x * T, y * T, front ? 'fill_' + th : 'wallt_' + th).setOrigin(0).setDepth(0.2);
+        if (front) { this.deco.lineStyle(5, OUT, 1); this.deco.beginPath(); this.deco.moveTo(x * T, (y + 1) * T); this.deco.lineTo((x + 1) * T, (y + 1) * T); this.deco.strokePath(); }
+        if (nearFloor(x, y, 1)) wallCells.push([x, y]);
+      }
+    }
+    const runs = (cells, add) => {
+      const rows = {}; cells.forEach(([x, y]) => (rows[y] = rows[y] || []).push(x));
+      for (const y in rows) { const xs = rows[y].sort((a, b) => a - b); let s = xs[0], p = xs[0]; for (let i = 1; i <= xs.length; i++) { if (xs[i] !== p + 1) { add(s, +y, p - s + 1); s = xs[i]; } p = xs[i]; } }
+    };
+    runs(wallCells, (x, y, w) => this.addSolid(this.wallG, x * T, y * T, w * T, T));
+    runs(pitCells, (x, y, w) => this.addSolid(this.pitBlockG, x * T, y * T, w * T, T));
+    this.deco.lineStyle(4, OUT, 1);
+    for (const [x, y] of pitCells) {
+      if (this.at(x - 1, y) === 1) { this.deco.beginPath(); this.deco.moveTo(x * T, y * T); this.deco.lineTo(x * T, (y + 1) * T); this.deco.strokePath(); }
+      if (this.at(x + 1, y) === 1) { this.deco.beginPath(); this.deco.moveTo((x + 1) * T, y * T); this.deco.lineTo((x + 1) * T, (y + 1) * T); this.deco.strokePath(); }
+    }
+  }
+  addSolid(group, x, y, w, h) {
+    const r = this.add.rectangle(x + w / 2, y + h / 2, w, h, 0x000000, 0);
+    this.physics.add.existing(r, true); group.add(r); return r;
+  }
+  pitAt(x, y) {
+    const cx = Math.floor(x / T), cy = Math.floor(y / T);
+    if (cx < 0 || cy < 0 || cx >= this.gw || cy >= this.gh) return false;
+    const k = cy * this.gw + cx;
+    return this.pitSet.has(k) && !this.bridged.has(k);
+  }
+  onMover(x, y) { for (const m of this.moversA) if (x > m.px && x < m.px + m.w && y > m.py && y < m.py + m.h) return m; return null; }
+  wallPx(x, y) { return this.at(Math.floor(x / T), Math.floor(y / T)) === 0; }
+
+  // ── Objekte (Koordinaten in Kacheln) ──
+  cx(x) { return x * T + T / 2; }
+  cy(y) { return y * T + T / 2; }
+  coin(x, y) {
+    const c = this.add.image(this.cx(x), this.cy(y) - 6, 'coin').setDepth(this.cy(y));
+    this.tweens.add({ targets: c, scaleX: 0.3, yoyo: true, repeat: -1, duration: 500 + Math.random() * 200 });
+    this.coinsA.push(c);
+  }
+  coins(x, y, n, dx = 1, dy = 0) { for (let i = 0; i < n; i++) this.coin(x + i * dx, y + i * dy); }
+  trash(x, y) {
+    const t = this.add.image(this.cx(x), this.cy(y), 'trash' + Phaser.Math.Between(0, 3)).setDepth(this.cy(y));
+    this.tweens.add({ targets: t, scale: 1.12, yoyo: true, repeat: -1, duration: 600, delay: Math.random() * 400 });
+    this.pickups.push(t);
+  }
+  crate(x, y, loot) {
+    const c = this.add.image(this.cx(x), this.cy(y), 'crate').setDepth(this.cy(y));
+    this.physics.add.existing(c, true); this.crateG.add(c); c.loot = loot; this.crateList.push(c);
+  }
+  crates(x, y, w, h, loot) { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.crate(x + i, y + j, loot && i === 0 && j === 0); }
+  spikes(x, y, w, h) {
+    const s = this.add.tileSprite(x * T, y * T, w * T, h * T, 'spk').setOrigin(0).setDepth(0.8);
+    this.physics.add.existing(s, true); s.body.setSize(w * T - 10, h * T - 10).setOffset(5, 5);
+    this.spikesA.push(s);
+  }
+  enemy(type, x, y, opt) { return this.spawnEnemy(type, this.cx(x), this.cy(y), opt); }
+  target(id, x, y, color, dur) {
+    const t = this.add.image(this.cx(x), (y + 1) * T - 2, 'target_' + color + '_off').setOrigin(0.5, 1).setDepth((y + 1) * T);
+    this.physics.add.existing(t, true); t.body.setSize(36, 22).setOffset(10, 42); this.targetG.add(t);
+    Object.assign(t, { color, dur, until: 0, perm: false, id, isOn: false });
+    this.targets.push(t); (this.groups[id] = this.groups[id] || { t: [], p: [] }).t.push(t);
+  }
+  plate(id, x, y, color) {
+    const p = this.add.image(this.cx(x), this.cy(y), 'plate_' + color + '_off').setDepth(0.9);
+    this.physics.add.existing(p, true); p.body.setSize(50, 30).setOffset(10, -6);
+    Object.assign(p, { color, pressed: false, ever: false, id });
+    this.plates.push(p); (this.groups[id] = this.groups[id] || { t: [], p: [] }).p.push(p);
+  }
+  gate(id, x, y, w, h, color) {
+    const g = this.add.tileSprite(x * T, y * T, w * T, h * T, 'gate').setOrigin(0).setDepth(y * T + 20).setTint(GCOL[color]);
+    this.physics.add.existing(g, true); this.gateG.add(g);
+    Object.assign(g, { id, open: false }); this.gates.push(g);
+  }
+  bridge(id, x, y, w, h, color) {
+    const v = this.add.tileSprite(x * T, y * T, w * T, h * T, 'plank_' + this.theme).setOrigin(0).setDepth(0.7).setTint(GCOL[color]).setAlpha(0.25);
+    const keys = []; for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) keys.push(j * this.gw + i);
+    this.bridges.push({ id, v, keys, on: false });
+  }
+  mover(x, y, w, h, dx, dy, period) {
+    const v = this.add.tileSprite(x * T, y * T, w * T, h * T, 'plank_' + this.theme).setOrigin(0).setDepth(0.7);
+    this.moversA.push({ v, bx: x * T, by: y * T, px: x * T, py: y * T, w: w * T, h: h * T, dx: dx * T, dy: dy * T, period: period * (this.kids ? 1.25 : 1) });
+  }
+  crusher(x, y, period, offset) { // 2x2 Kacheln große Presse
+    const vis = this.add.image((x + 1) * T, (y + 2) * T - 6, 'stomper').setOrigin(0.5, 1).setVisible(false);
+    this.crushers.push({ x: x * T, y: y * T, w: 2 * T, h: 2 * T, per: period * (this.kids ? 1.3 : 1), off: offset, vis, dang: false, warn: 0 });
+  }
+  laser(x, y, len, dir, period, offset, id) {
+    const r = dir === 'h' ? { x: x * T, y: y * T + T / 2 - 6, w: len * T, h: 12 } : { x: x * T + T / 2 - 6, y: y * T, w: 12, h: len * T };
+    const ends = dir === 'h' ? [[x * T + 10, y * T + T / 2], [(x + len) * T - 10, y * T + T / 2]] : [[x * T + T / 2, y * T + 10], [x * T + T / 2, (y + len) * T - 10]];
+    for (const e of ends) this.add.image(e[0], e[1] + 10, 'laser_emit').setDepth(e[1] + 14);
+    this.lasers.push({ r, per: period * (this.kids ? 1.3 : 1), off: offset, id, on: true, warn: false, dir });
+  }
+  conveyor(x, y, w, h, dirx, speed) {
+    const c = this.add.tileSprite(x * T, y * T, w * T, h * T, 'conv2').setOrigin(0).setDepth(0.6);
+    if (dirx < 0) c.setFlipX(true);
+    this.convs.push({ v: c, r: new Phaser.Geom.Rectangle(x * T, y * T, w * T, h * T), d: dirx, spd: speed * (this.kids ? 0.6 : 1) });
+  }
+  checkpoint(x, y) {
+    const f = this.add.image(this.cx(x), (y + 1) * T - 4, 'flag').setOrigin(0.5, 1).setDepth((y + 1) * T);
+    f.cx = this.cx(x); f.cy = this.cy(y); f.hit = false; this.cps.push(f);
+  }
+  sign(x, y, text) {
+    const s = this.add.image(this.cx(x), (y + 1) * T - 4, 'sign').setOrigin(0.5, 1).setDepth((y + 1) * T);
+    const t = this.add.text(this.cx(x), (y + 1) * T - 70, text, { fontFamily: FONT, fontSize: '20px', color: '#16101f', backgroundColor: '#fff6d2', padding: { x: 12, y: 8 }, align: 'center' }).setOrigin(0.5, 1).setDepth(2950).setVisible(false);
+    this.signs.push({ s, t });
+  }
+  boss(kind) {
+    const A = this.A, AY = this.AY, en = this.def.entry; // entry = [y, h] des Eingangs-Tores
+    const g = this.add.tileSprite(A * T, en[0] * T, T, en[1] * T, 'gate').setOrigin(0).setDepth(en[0] * T + 20).setTint(0xff4d4d).setAlpha(0);
+    this.physics.add.existing(g, true); this.gateG.add(g); g.body.enable = false; g.lock = true; this.lockGate = g;
+    this.exitPos = { x: (A + 23) * T + 24, y: (AY + 7) * T + 40 };
+    this.exitSpr = this.add.image(this.exitPos.x, this.exitPos.y + 40, 'exit_closed').setOrigin(0.5, 1).setDepth(this.exitPos.y + 40);
+    this.bossObj = new Boss(this, kind, (A + 19) * T, (AY + 7.5) * T);
+    for (let i = 0; i < 5; i++) this.trash(A + 3 + i * 5, AY + (i % 2 ? 12 : 2));
+  }
+
+  // ───────────────────────── Akteure ─────────────────────────
+  actor(x, y, fw, fh, visTex, yoff = 10) {
+    const key = shadowKey(this, fw + 14, fh + 8);
+    const a = this.physics.add.sprite(x, y, key).setDepth(1.6);
+    a.body.setSize(fw, fh).setOffset(7, 4);
+    a.vis = this.add.image(x, y + yoff, visTex).setOrigin(0.5, 1); a.yoff = yoff; a.z = 0;
+    return a;
+  }
+  syncVis(a, extra = 0) { a.vis.setPosition(Math.round(a.x), Math.round(a.y + a.yoff - (a.z || 0) - extra)); a.vis.setDepth(a.y + 10); }
+  killActor(a) { if (a.vis) a.vis.destroy(); a.destroy(); }
+
+  makePlayers() {
+    this.p = [];
+    const st = this.def.start;
+    for (let i = 0; i < 2; i++) {
+      const p = this.actor((st[0] + i * 1.3) * T + 24, st[1] * T + 24, 30, 18, i === 0 ? 'knox_t' : 'zippy_t', 10);
+      p.setCollideWorldBounds(true);
+      p.noz = this.add.image(p.x, p.y, 'nozzle').setOrigin(0.2, 0.5);
+      p.icon = this.add.image(p.x, p.y, i === 0 ? 'zippy_t' : 'knox_t').setScale(0.42).setVisible(false);
+      p.idx = i; p.ctrl = new Ctrl(this, i); p.state = 'normal'; p.aim = { x: 0, y: 1 }; p.ammo = this.kids ? 6 : 3; p.maxAmmo = this.kids ? 10 : 6;
+      Object.assign(p, { inv: 0, shootCd: 0, suckSfx: 0, lockUntil: 0, holder: null, holding: null, heldAt: 0, hop: null, hopCd: 0, fly: null, noSwallow: 0, safeT: 0, ammoRegen: 0, fallT: 0, in: {}, conv: 0 });
+      p.lastSafe = { x: p.x, y: p.y };
+      this.p.push(p);
+    }
+  }
+  setupColliders() {
+    const ph = this.physics, np = (p) => !p.fly;
+    for (const p of this.p) {
+      ph.add.collider(p, this.wallG);
+      ph.add.collider(p, this.gateG, null, np); ph.add.collider(p, this.crateG, null, np); ph.add.collider(p, this.targetG, null, np);
+    }
+    for (const g of [this.wallG, this.gateG, this.crateG, this.pitBlockG, this.targetG]) ph.add.collider(this.enemyG, g, null, (e) => !e.cfg.fly || g === this.wallG || g === this.gateG);
+    ph.add.collider(this.shotG, this.wallG, s => this.splat(s));
+    ph.add.collider(this.shotG, this.gateG, s => this.splat(s));
+    ph.add.collider(this.shotG, this.crateG, (s, c) => { this.breakCrate(c); this.splat(s); });
+    ph.add.collider(this.shotG, this.targetG, (s, t) => { this.hitTarget(t); this.splat(s); });
+    ph.add.collider(this.eshotG, this.wallG, s => this.splat(s, 0xa0f06a));
+    ph.add.collider(this.eshotG, this.gateG, s => this.splat(s, 0xa0f06a));
+  }
+  splat(s, tint) {
+    if (!s.active) return;
+    this.burst(s.x, s.y - 14, 'puff', 5, 70, tint || 0xffffff);
+    this.killActor(s);
+  }
+
+  // ───────────────────────── HUD ─────────────────────────
+  makeHud() {
+    const fixed = o => o.setScrollFactor(0).setDepth(5000);
+    this.heartI = [];
+    for (let i = 0; i < this.maxHearts; i++) this.heartI.push(fixed(this.add.image(34 + i * 36, 34, 'heart')));
+    fixed(this.add.image(W - 150, 34, 'coin').setScale(1.3));
+    this.coinT = fixed(this.add.text(W - 128, 34, '0', { fontFamily: FONT, fontSize: '30px', color: '#fff', stroke: '#16101f', strokeThickness: 6 }).setOrigin(0, 0.5));
+    this.ammoT = [];
+    for (let i = 0; i < 2; i++) {
+      const x = i === 0 ? 34 : W - 190, y = H - 50;
+      fixed(this.add.image(x + 18, y, i === 0 ? 'knox' : 'zippy').setScale(0.6));
+      fixed(this.add.image(x + 70, y + 2, 'trash0').setScale(0.9));
+      this.ammoT.push(fixed(this.add.text(x + 92, y, '×3', { fontFamily: FONT, fontSize: '28px', color: '#fff', stroke: '#16101f', strokeThickness: 6 }).setOrigin(0, 0.5)));
+    }
+    this.bossG = fixed(this.add.graphics());
+    this.bossName = fixed(this.add.text(W / 2, 62, '', { fontFamily: FONT, fontSize: '22px', color: '#fff', stroke: '#16101f', strokeThickness: 6 }).setOrigin(0.5, 0)).setVisible(false);
+    this.msg = fixed(this.add.text(W / 2, 140, '', { fontFamily: FONT, fontSize: '34px', color: '#fff', stroke: '#16101f', strokeThickness: 8, align: 'center' }).setOrigin(0.5).setAlpha(0));
+    this.pauseG = fixed(this.add.graphics()).setVisible(false).setDepth(6000);
+    this.pauseT = fixed(this.add.text(W / 2, H / 2, '', { fontFamily: FONT, fontSize: '36px', color: '#fff', stroke: '#16101f', strokeThickness: 8, align: 'center' }).setOrigin(0.5)).setVisible(false).setDepth(6001);
+  }
+  banner(text, color, ms = 1600) {
+    const t = this.add.text(W / 2, H / 2 - 40, text, { fontFamily: FONT, fontSize: '80px', fontStyle: 'bold', color: '#fff', stroke: '#16101f', strokeThickness: 14 }).setOrigin(0.5).setScrollFactor(0).setDepth(6000).setScale(0.2).setAlpha(0);
+    this.tweens.add({ targets: t, scale: 1, alpha: 1, duration: 300, ease: 'Back.out' });
+    this.tweens.add({ targets: t, alpha: 0, y: t.y - 60, delay: ms, duration: 400, onComplete: () => t.destroy() });
+  }
+  toast(text, ms = 1800) {
+    this.msg.setText(text).setAlpha(1); this.tweens.killTweensOf(this.msg);
+    this.tweens.add({ targets: this.msg, alpha: 0, delay: ms, duration: 400 });
+  }
+  burst(x, y, tex, n, speed, tint) {
+    for (let i = 0; i < n; i++) {
+      const s = this.add.image(x, y, tex).setDepth(2950).setScale(0.6 + Math.random() * 0.6);
+      if (tint) s.setTint(tint);
+      const a = Math.random() * Math.PI * 2, d = speed * (0.4 + Math.random() * 0.8);
+      this.tweens.add({ targets: s, x: x + Math.cos(a) * d, y: y + Math.sin(a) * d * 0.7, alpha: 0, scale: 0.1, angle: Phaser.Math.Between(-180, 180), duration: 380 + Math.random() * 250, onComplete: () => s.destroy() });
+    }
+  }
+  say(text, x, y, ms = 1800) {
+    const t = this.add.text(x, y, text, { fontFamily: FONT, fontSize: '22px', color: '#16101f', backgroundColor: '#ffffff', padding: { x: 10, y: 6 } }).setOrigin(0.5, 1).setDepth(2960);
+    this.tweens.add({ targets: t, y: y - 20, alpha: 0, delay: ms, duration: 400, onComplete: () => t.destroy() });
+  }
+  shake(d = 200, i = 0.01) { this.cameras.main.shake(d, i); }
+
+  // ───────────────────────── Gegner ─────────────────────────
+  spawnEnemy(type, x, y, opt = {}) {
+    const c = ENEMY[type];
+    const e = this.actor(x, y, c.fw, c.fh, c.tex, 10);
+    this.enemyG.add(e);
+    e.setCollideWorldBounds(true);
+    e.cfg = c; e.type = type;
+    e.hp = Math.max(1, this.kids && c.hp > 2 ? c.hp - 1 : c.hp);
+    Object.assign(e, { st: 'wander', stT: 600 + Math.random() * 1200, wd: new Phaser.Math.Vector2(0, 0), cool: 1500 + Math.random() * 1500, ph: Math.random() * 6, cd: new Phaser.Math.Vector2(1, 0), kb: 0 });
+    if (c.still) e.body.setImmovable(true);
+    if (c.fly) e.z = 34;
+    this.enemyList.push(e);
+    return e;
+  }
+  damageEnemy(e, dmg, fx, fy) {
+    if (!e.active) return;
+    e.hp -= dmg; Sfx.play('hit');
+    e.vis.setTintFill(0xffffff); this.time.delayedCall(90, () => e.active && e.vis.clearTint());
+    if (!e.cfg.still) { const v = new Phaser.Math.Vector2(e.x - fx, e.y - fy); if (v.lengthSq() < 1) v.set(0, 1); v.normalize().scale(220); e.body.setVelocity(v.x, v.y); e.kb = this.time.now + 200; }
+    if (e.hp <= 0) this.killEnemy(e);
+  }
+  killEnemy(e) {
+    Sfx.play('pop');
+    this.burst(e.x, e.y - 20, 'puff', 8, 90, 0xdddddd); this.burst(e.x, e.y - 20, 'star', 4, 80);
+    this.dropCoin(e.x, e.y, Phaser.Math.Between(1, 2));
+    if (Math.random() < (this.kids ? 0.8 : 0.55)) { const t = this.add.image(e.x, e.y, 'trash' + Phaser.Math.Between(0, 3)).setDepth(e.y); this.pickups.push(t); }
+    this.enemyList = this.enemyList.filter(o => o !== e);
+    this.killActor(e);
+  }
+  dropCoin(x, y, n) {
+    for (let i = 0; i < n; i++) {
+      const c = this.add.image(x, y, 'coin').setDepth(y);
+      this.tweens.add({ targets: c, x: x + Phaser.Math.Between(-50, 50), y: y + Phaser.Math.Between(-40, 40), duration: 250, ease: 'Quad.out' });
+      this.coinsA.push(c);
+    }
+  }
+  eshot(x, y, vx, vy, tex = 'goo') {
+    const s = this.physics.add.sprite(x, y, 'dotp').setAlpha(0).setDepth(1.6); this.eshotG.add(s);
+    s.body.setSize(14, 14); s.body.setVelocity(vx, vy);
+    s.vis = this.add.image(x, y - 18, tex).setDepth(2900); s.born = this.time.now; s.z = 18;
+    return s;
+  }
+  nearest(x, y) {
+    let best = null, bd = 1e9;
+    for (const p of this.p) { if (p.state !== 'normal') continue; const d = Phaser.Math.Distance.Between(x, y, p.x, p.y); if (d < bd) { bd = d; best = p; } }
+    return best || this.p[0];
+  }
+  updateEnemies(time, dt) {
+    const km = this.kids ? 0.65 : 1;
+    for (const e of this.enemyList.slice()) {
+      if (!e.active) continue;
+      const c = e.cfg, b = e.body, p = this.nearest(e.x, e.y);
+      const dx = p.x - e.x, dy = p.y - e.y, dist = Math.hypot(dx, dy) || 1;
+      if (c.fly) e.z = 34 + Math.sin(time / 300 + e.ph) * 6;
+      let sp = c.speed * km, dirx = 0, diry = 0;
+      if (time < e.kb) { this.syncVis(e); continue; }
+      if (c.still) {
+        e.cool -= dt * 1000;
+        if (e.cool <= 0 && dist < 600) { e.cool = this.kids ? 3600 : 2300; this.eshot(e.x, e.y, dx / dist * 230, dy / dist * 230); Sfx.play('shoot'); }
+        e.vis.setFlipX(dx > 0); this.syncVis(e); continue;
+      }
+      e.stT -= dt * 1000;
+      const blocked = b.blocked.left || b.blocked.right || b.blocked.up || b.blocked.down;
+      if (c.charge && e.st === 'wind') { sp = 0; if (e.stT <= 0) { e.st = 'dash'; e.stT = 1000; e.vis.clearTint(); } }
+      else if (c.charge && e.st === 'dash') { sp = 330 * km; dirx = e.cd.x; diry = e.cd.y; if (e.stT <= 0 || blocked) { e.st = 'rest'; e.stT = 900; } }
+      else if (c.charge && e.st === 'rest') { sp = 0; if (e.stT <= 0) e.st = 'wander'; }
+      else if (c.charge && dist < c.chase && Math.abs(dy) < 200) { e.st = 'wind'; e.stT = 480; e.cd.set(dx / dist, dy / dist); e.vis.setTint(0xff9a9a); sp = 0; }
+      else {
+        if (dist < c.chase) e.st = 'chase';
+        else if (e.st === 'chase' && dist > c.chase * 1.4) e.st = 'wander';
+        if (e.st === 'chase') { dirx = dx / dist; diry = dy / dist; if (c.fly) dirx += Math.cos(time / 400 + e.ph) * 0.4; }
+        else {
+          if (e.stT <= 0 || blocked) { e.stT = 900 + Math.random() * 1600; const a = Math.random() < 0.3 ? null : Math.random() * Math.PI * 2; e.wd.set(a === null ? 0 : Math.cos(a), a === null ? 0 : Math.sin(a)); }
+          dirx = e.wd.x; diry = e.wd.y; sp *= 0.6;
+        }
+      }
+      b.setVelocity(dirx * sp, diry * sp);
+      if (Math.abs(dirx) > 0.2) e.vis.setFlipX(c.tex === 'e_charger' ? dirx < 0 : dirx > 0);
+      this.syncVis(e, c.fly ? 0 : (sp > 0 ? Math.abs(Math.sin(time / 120 + e.ph)) * 4 : 0));
+    }
+  }
+
+  // ───────────────────────── Spieler ─────────────────────────
+  hurtPlayer(p, sx, sy, force) {
+    const time = this.time.now;
+    if (p.state !== 'normal' || (time < p.inv && !force) || p.fly) return;
+    p.inv = time + 1400; p.lockUntil = time + 260;
+    const v = new Phaser.Math.Vector2(p.x - sx, p.y - sy); if (v.lengthSq() < 1) v.set(0, 1);
+    v.normalize().scale(300); p.body.setVelocity(v.x, v.y); p.hop = null; p.z = 0;
+    Sfx.play('hurt'); this.burst(p.x, p.y - 20, 'star', 5, 60);
+    if (p.holding) this.release(p, false);
+    if (!this.kids) { this.hearts--; if (this.hearts <= 0) this.teamDown(); }
+  }
+  teamDown() {
+    if (this.downing) return; this.downing = true;
+    this.toast('Autsch! Zurück zum letzten Checkpoint…', 1400);
+    this.cameras.main.fadeOut(600);
+    this.time.delayedCall(700, () => {
+      this.hearts = this.maxHearts; this.downing = false;
+      for (const p of this.p) { if (p.holding) this.release(p, false); this.placeAt(p, this.cp.x + p.idx * 40, this.cp.y); }
+      if (this.bossObj && this.bossObj.started) this.resetBoss();
+      this.cameras.main.fadeIn(400);
+    });
+  }
+  resetBoss() {
+    this.bossStarted = false; this.bossObj.reset();
+    if (this.lockGate) { this.lockGate.body.enable = false; this.lockGate.setAlpha(0); }
+    this.cameras.main.startFollow(this.camT, true, 0.12, 0.12);
+  }
+  placeAt(p, x, y) {
+    p.state = 'normal'; p.body.enable = true; p.vis.setVisible(true).setScale(1).setAngle(0); p.setVisible(true); p.noz.setVisible(true);
+    p.fly = null; p.hop = null; p.z = 0; p.holder = null; p.holding = null;
+    p.body.reset(x, y); p.inv = this.time.now + 1500; this.syncVis(p);
+  }
+  startFall(p) {
+    p.state = 'falling'; p.fallT = 0.6; p.body.setVelocity(0, 0); p.hop = null; p.fly = null; p.z = 0; Sfx.play('hurt');
+    p.noz.setVisible(false);
+    this.tweens.add({ targets: p.vis, scale: 0.1, angle: 360, duration: 600 });
+  }
+  afterFall(p) {
+    if (!this.kids) { this.hearts--; if (this.hearts <= 0) { this.teamDown(); return; } }
+    this.toast(this.kids ? 'Plumps! Weiter geht\'s.' : '', 700);
+    this.placeAt(p, p.lastSafe.x, p.lastSafe.y);
+  }
+  swallow(h, o) {
+    o.state = 'held'; o.holder = h; h.holding = o; o.heldAt = this.time.now;
+    o.body.enable = false; o.setVisible(false); o.vis.setVisible(false); o.noz.setVisible(false); o.fly = null; o.hop = null;
+    Sfx.play('gulp'); this.burst(h.x + h.aim.x * 30, h.y - 10, 'puff', 6, 50);
+    this.toast(this.kids ? 'Jetzt X drücken: wegschießen!' : '', 1500);
+  }
+  release(h, launch) {
+    const o = h.holding; if (!o) return;
+    h.holding = null; o.holder = null; o.state = 'normal'; o.body.enable = true; o.setVisible(true); o.vis.setVisible(true); o.noz.setVisible(true);
+    o.body.reset(h.x + h.aim.x * 24, h.y + h.aim.y * 24);
+    o.noSwallow = this.time.now + 700; o.inv = this.time.now + 600;
+    if (launch) {
+      o.fly = { t: 0, vx: h.aim.x * LV, vy: h.aim.y * LV }; o.lockUntil = this.time.now + FLY_T * 1000;
+      o.body.setVelocity(o.fly.vx, o.fly.vy); this.tetherOff = this.time.now + FLY_T * 1000 + 600;
+      Sfx.play('shoot'); this.burst(h.x, h.y - 20, 'puff', 6, 60);
+    } else { o.body.setVelocity(-h.aim.x * 140, -h.aim.y * 140); Sfx.play('pop'); }
+  }
+  landFly(p) {
+    p.fly = null; p.z = 0; p.body.setVelocity(0, 0); p.lockUntil = 0;
+    this.burst(p.x, p.y, 'puff', 6, 50);
+    for (const e of this.enemyList.slice()) if (e.active && ov(p, e)) this.damageEnemy(e, 2, p.x, p.y);
+  }
+
+  updatePlayer(p, dt, time) {
+    const c = p.in, b = p.body, o = this.p[1 - p.idx];
+    if (p.state === 'held') {
+      p.setPosition(p.holder.x, p.holder.y); p.vis.setVisible(false);
+      if ((c.jumpEdge && time - p.heldAt > 450) || time - p.heldAt > 6000) this.release(p.holder, false);
+      return;
+    }
+    if (p.state === 'falling') { p.fallT -= dt; this.syncVis(p); if (p.fallT <= 0) this.afterFall(p); return; }
+
+    let mx = c.x, my = c.y; const ml = Math.hypot(mx, my);
+    if (ml < 0.22) { mx = 0; my = 0; } else if (ml > 1) { mx /= ml; my /= ml; }
+    if (ml >= 0.3) p.aim = { x: mx / Math.hypot(mx, my), y: my / Math.hypot(mx, my) };
+    const locked = time < p.lockUntil;
+    const speed = this.kids ? 215 : SPEED;
+
+    if (p.fly) {
+      p.fly.t += dt; p.z = Math.sin(Math.min(1, p.fly.t / FLY_T) * Math.PI) * 85;
+      b.setVelocity(p.fly.vx, p.fly.vy);
+      if (p.fly.t >= FLY_T || b.blocked.left || b.blocked.right || b.blocked.up || b.blocked.down) this.landFly(p);
+    } else if (p.hop) {
+      p.hop.t += dt; p.z = Math.sin(Math.min(1, p.hop.t / HOP_T) * Math.PI) * 50;
+      b.setVelocity(p.hop.vx, p.hop.vy);
+      if (p.hop.t >= HOP_T || b.blocked.left || b.blocked.right || b.blocked.up || b.blocked.down) this.endHop(p);
+    } else if (!locked) {
+      let tx = mx * speed, ty = my * speed;
+      const onConv = this.convs.find(cv => cv.r.contains(p.x, p.y));
+      if (onConv) tx += onConv.d * onConv.spd;
+      const a = 3400 * dt;
+      b.setVelocity(approach(b.velocity.x, tx, a), approach(b.velocity.y, ty, a));
+      if (c.jumpEdge && time > p.hopCd) {
+        const hv = ml >= 0.3 ? { x: mx / ml, y: my / ml } : p.aim;
+        p.hop = { t: 0, vx: hv.x * HOP_V, vy: hv.y * HOP_V }; Sfx.play('jump'); this.burst(p.x, p.y, 'puff', 3, 30);
+      }
+    }
+    const air = p.fly || p.hop;
+
+    const moving = !air && Math.hypot(b.velocity.x, b.velocity.y) > 40;
+    p.vis.setFlipX(p.aim.x < -0.2 ? true : (p.aim.x > 0.2 ? false : p.vis.flipX));
+    p.vis.setScale(1 + (p.hop ? 0.08 : 0), 1 + (p.hop ? 0.1 : (moving ? Math.sin(time / 60) * 0.03 : 0)));
+    p.vis.setAngle(p.fly ? (time / 3) % 360 : (moving ? Math.sin(time / 70) * 3 : 0));
+    this.syncVis(p);
+    p.noz.setPosition(p.x + p.aim.x * 20, p.y - 14 - p.z + p.aim.y * 8).setRotation(Math.atan2(p.aim.y, p.aim.x)).setDepth(p.y + (p.aim.y < -0.3 ? 9 : 11)).setVisible(!p.fly);
+    p.vis.setAlpha(time < p.inv ? (Math.floor(time / 70) % 2 ? 0.35 : 1) : 1);
+
+    p.sucking = c.suck && !p.holding && !locked && !air;
+    if (p.sucking) this.doSuck(p, o, time, dt);
+    if (c.shootEdge && time > p.shootCd && !locked && !air) {
+      p.shootCd = time + 200;
+      if (p.holding) this.release(p, true);
+      else if (p.ammo > 0) this.fireTrash(p);
+      else { Sfx.play('empty'); this.toast('Kein Müll! Saug welchen ein (B halten).', 1000); }
+    }
+    if (this.kids && p.ammo < 3) { p.ammoRegen += dt; if (p.ammoRegen > 2.5) { p.ammo++; p.ammoRegen = 0; } }
+
+    if (!air) {
+      const mv = this.onMover(p.x, p.y);
+      if (this.pitAt(p.x, p.y) && !mv) { this.startFall(p); return; }
+      if (time > p.safeT && p.state === 'normal') {
+        p.safeT = time + 250;
+        const ok = [[0, 0], [30, 0], [-30, 0], [0, 30], [0, -30]].every(([dx, dy]) => !this.pitAt(p.x + dx, p.y + dy)) && !mv && !this.wallPx(p.x, p.y);
+        if (ok) p.lastSafe = { x: p.x, y: p.y };
+      }
+    }
+  }
+  endHop(p) {
+    p.hop = null; p.z = 0; p.hopCd = this.time.now + 120; p.body.setVelocity(p.body.velocity.x * 0.3, p.body.velocity.y * 0.3);
+    p.vis.setScale(1.15, 0.85); this.tweens.add({ targets: p.vis, scaleX: 1, scaleY: 1, duration: 120 });
+    for (const e of this.enemyList.slice()) if (e.active && ov(p, e)) {
+      if (e.cfg.stomp) { this.damageEnemy(e, 1, p.x, p.y); Sfx.play('stomp'); }
+      else { Sfx.play('empty'); this.burst(e.x, e.y - 30, 'star', 3, 40); this.hurtPlayer(p, e.x, e.y); }
+    }
+    const bo = this.bossObj; if (bo && bo.started && !bo.dead && ov(p, bo.spr)) bo.stomp(p);
+  }
+  fireTrash(p) {
+    p.ammo--; Sfx.play('shoot');
+    const a = p.aim, x = p.x + a.x * 30, y = p.y + a.y * 20;
+    const s = this.physics.add.sprite(x, y, 'dotp').setAlpha(0).setDepth(1.6); this.shotG.add(s);
+    s.body.setSize(16, 16); s.body.setVelocity(a.x * 700, a.y * 700);
+    s.vis = this.add.image(x, y - 22, 'trash' + Phaser.Math.Between(0, 3)).setDepth(2900); s.z = 22;
+    s.born = this.time.now;
+    this.tweens.add({ targets: s.vis, angle: 360, duration: 500, repeat: -1 });
+    this.burst(x, y - 20, 'puff', 3, 40);
+  }
+  doSuck(p, o, time, dt) {
+    const a = p.aim, mx = p.x + a.x * 26, my = p.y - 6 + a.y * 14;
+    const range = 175, cos = Math.cos(Phaser.Math.DegToRad(50));
+    if (time > p.suckSfx) { p.suckSfx = time + 120; Sfx.play('suck'); }
+    const inCone = (x, y, r) => { const dx = x - mx, dy = y - my, d = Math.hypot(dx, dy); if (d < 55) return true; if (d > r) return false; return (dx * a.x + dy * a.y) / d > cos; };
+    for (const t of this.pickups.slice()) {
+      if (!t.active || !inCone(t.x, t.y, range)) continue;
+      const d = Math.hypot(mx - t.x, my - t.y) || 1;
+      this.tweens.killTweensOf(t); t.setScale(1);
+      const sp = 520 * dt; t.x += (mx - t.x) / d * Math.min(sp, d); t.y += (my - t.y) / d * Math.min(sp, d); t.setDepth(t.y);
+      if (d < 26) {
+        if (p.ammo < p.maxAmmo) { p.ammo++; Sfx.play('pickup'); t.destroy(); this.pickups = this.pickups.filter(q => q !== t); }
+        else this.toast('Munition voll!', 600);
+      }
+    }
+    if (o.state === 'normal' && time > o.noSwallow && !o.fly && !o.hop && inCone(o.x, o.y, 125) && Math.hypot(o.x - p.x, o.y - p.y) < 125) this.swallow(p, o);
+  }
+
+  // ───────────────────────── Rätsel-Logik ─────────────────────────
+  active(id) {
+    const g = this.groups[id]; if (!g || (!g.t.length && !g.p.length)) return false;
+    const time = this.time.now;
+    for (const t of g.t) if (!(t.perm || time < t.until)) return false;
+    for (const p of g.p) if (!p.ever) return false;
+    return true;
+  }
+  hitTarget(t) {
+    if (t.perm) return;
+    const was = t.isOn;
+    if (t.dur === 0) t.perm = true; else t.until = this.time.now + t.dur * 1000 * (this.kids ? 1.8 : 1);
+    if (!was) { Sfx.play('switch'); this.burst(t.x, t.y - 30, 'star', 6, 60); }
+  }
+  updatePuzzles(time, dt) {
+    for (const t of this.targets) {
+      const on = t.perm || time < t.until;
+      if (on !== t.isOn) { t.isOn = on; t.setTexture('target_' + t.color + (on ? '_on' : '_off')); if (!on) Sfx.play('empty'); }
+    }
+    for (const pl of this.plates) {
+      let pr = false;
+      for (const q of this.p) if (q.state === 'normal' && !q.fly && q.z < 10 && ov(q, pl)) pr = true;
+      if (pr !== pl.pressed) { pl.pressed = pr; pl.setTexture('plate_' + pl.color + (pr ? '_on' : '_off')); if (pr) { Sfx.play('switch'); pl.ever = true; } }
+    }
+    for (const g of this.gates) {
+      if (g.lock) continue;
+      const want = this.active(g.id);
+      if (want !== g.open) {
+        g.open = want; Sfx.play('gate'); g.body.enable = !want;
+        this.tweens.killTweensOf(g); this.tweens.add({ targets: g, alpha: want ? 0.18 : 1, duration: 400 });
+      }
+    }
+    for (const br of this.bridges) {
+      if (this.active(br.id) && !br.on) { br.on = true; br.keys.forEach(k => this.bridged.add(k)); br.v.setAlpha(1); Sfx.play('gate'); this.burst(br.v.x + br.v.width / 2, br.v.y + br.v.height / 2, 'puff', 8, 80); }
+    }
+    for (const m of this.moversA) {
+      const ph = (1 - Math.cos(time / 1000 * Math.PI * 2 / m.period)) / 2;
+      const nx = m.bx + m.dx * ph, ny = m.by + m.dy * ph, ddx = nx - m.px, ddy = ny - m.py;
+      for (const q of this.p) if (q.state === 'normal' && !q.fly && !q.hop && q.x > m.px && q.x < m.px + m.w && q.y > m.py && q.y < m.py + m.h) { q.x += ddx; q.y += ddy; }
+      m.px = nx; m.py = ny; m.v.setPosition(nx, ny);
+    }
+    for (const c of this.crushers) {
+      const ph = (((time / 1000 + c.off) % c.per) + c.per) % c.per / c.per;
+      c.dang = false; c.vis.setVisible(false); c.warn = (ph > 0.45 && ph < 0.7) ? (ph - 0.45) / 0.25 : 0;
+      const by = c.y + T * 2 - 6;
+      if (ph >= 0.7 && ph < 0.78) c.vis.setVisible(true).setY(by - (1 - (ph - 0.7) / 0.08) * 300).setDepth(c.y + T * 2);
+      else if (ph >= 0.78 && ph < 0.92) {
+        c.vis.setVisible(true).setY(by).setDepth(c.y + T * 2); c.dang = true;
+        if (!c.slam) { c.slam = true; this.shake(120, 0.006); Sfx.play('stomp'); this.burst(c.x + T, c.y + T * 2, 'puff', 8, 80, 0xcccccc); }
+      } else if (ph >= 0.92) c.vis.setVisible(true).setY(by - (ph - 0.92) / 0.08 * 300).setDepth(c.y + T * 2);
+      if (ph < 0.6) c.slam = false;
+    }
+    for (const l of this.lasers) {
+      if (l.id) l.on = !this.active(l.id);
+      else { const ph = (((time / 1000 + l.off) % l.per) + l.per) % l.per / l.per; l.on = ph < 0.5; l.warn = ph > 0.88; }
+    }
+    for (const cv of this.convs) cv.v.tilePositionX -= cv.d * cv.spd * dt * 0.7;
+  }
+  hazards(time) {
+    const g = this.gfx; g.clear();
+    for (const c of this.crushers) if (c.warn) { g.fillStyle(0xff3a2e, 0.15 + c.warn * 0.3); g.fillRect(c.x + 4, c.y + 4, c.w - 8, c.h - 8); g.lineStyle(4, 0xff3a2e, 0.8); g.strokeRect(c.x + 4, c.y + 4, c.w - 8, c.h - 8); }
+    for (const l of this.lasers) {
+      const r = l.r;
+      if (l.on) { g.fillStyle(0xff3a3a, 0.9); g.fillRect(r.x, r.y, r.w, r.h); g.fillStyle(0xffffff, 0.9); if (l.dir === 'h') g.fillRect(r.x, r.y + 4, r.w, 4); else g.fillRect(r.x + 4, r.y, 4, r.h); }
+      else if (l.warn || l.id) { g.fillStyle(0xff3a3a, l.id ? 0.12 : (Math.floor(time / 60) % 2 ? 0.45 : 0.1)); g.fillRect(r.x, r.y, r.w, r.h); }
+    }
+    for (const p of this.p) {
+      if (p.state !== 'normal' || p.fly) continue;
+      const pr = new Phaser.Geom.Rectangle(p.body.left, p.body.top, p.body.width, p.body.height);
+      if (p.z < 14) {
+        for (const s of this.spikesA) if (ov(p, s)) this.hurtPlayer(p, s.x + s.displayWidth / 2, s.y + s.displayHeight / 2);
+        for (const c of this.crushers) if (c.dang && Phaser.Geom.Intersects.RectangleToRectangle(pr, new Phaser.Geom.Rectangle(c.x, c.y, c.w, c.h))) this.hurtPlayer(p, c.x + T, c.y + T);
+      }
+      for (const l of this.lasers) if (l.on && Phaser.Geom.Intersects.RectangleToRectangle(pr, new Phaser.Geom.Rectangle(l.r.x, l.r.y, l.r.w, l.r.h))) this.hurtPlayer(p, p.x, p.y - 20);
+    }
+    for (const s of this.eshotG.getChildren().slice()) {
+      if (!s.active) continue;
+      s.vis.setPosition(s.x, s.y - s.z).setDepth(s.y + 12);
+      if (time - s.born > 3500) { this.killActor(s); continue; }
+      for (const p of this.p) if (p.state === 'normal' && p.z < 22 && ov(p, s)) { this.hurtPlayer(p, s.x, s.y); this.splat(s, 0xa0f06a); break; }
+    }
+  }
+  updateShots(time) {
+    for (const s of this.shotG.getChildren().slice()) {
+      if (!s.active) continue;
+      s.vis.setPosition(s.x, s.y - s.z).setDepth(s.y + 12);
+      if (time - s.born > 1000) { this.splat(s); continue; }
+      for (const e of this.enemyList.slice()) if (e.active && ov(s, e)) { this.damageEnemy(e, 1, s.x - s.body.velocity.x * 0.01, s.y - s.body.velocity.y * 0.01); this.splat(s); break; }
+      if (!s.active) continue;
+      const bo = this.bossObj;
+      if (bo && bo.started && !bo.dead && ov(s, bo.spr)) { bo.hurt(1); this.splat(s); }
+    }
+    for (const p of this.p) if (p.fly) {
+      for (const t of this.targets) if (ov(p, t)) this.hitTarget(t);
+      for (const c of this.crateList.slice()) if (c.active && ov(p, c)) { this.breakCrate(c); this.landFly(p); break; }
+      const bo = this.bossObj; if (p.fly && bo && bo.started && !bo.dead && ov(p, bo.spr)) { bo.hurt(2); this.landFly(p); }
+    }
+  }
+  breakCrate(c) {
+    Sfx.play('crate'); this.burst(c.x, c.y, 'puff', 8, 80, 0xc99a5b); this.shake(80, 0.004);
+    if (c.loot) this.dropCoin(c.x, c.y, 3);
+    if (Math.random() < 0.4) { const t = this.add.image(c.x, c.y, 'trash' + Phaser.Math.Between(0, 3)).setDepth(c.y); this.pickups.push(t); }
+    this.crateList = this.crateList.filter(o => o !== c); c.destroy();
+  }
+  touches(time) {
+    const mag = this.kids ? 120 : 80;
+    for (const p of this.p) {
+      if (p.state !== 'normal') continue;
+      for (const c of this.coinsA.slice()) {
+        if (!c.active) continue;
+        const d = Math.hypot(c.x - p.x, c.y - (p.y - 16));
+        if (d < mag && d > 1) { c.x += (p.x - c.x) / d * Math.min(7, d); c.y += (p.y - 16 - c.y) / d * Math.min(7, d); }
+        if (d < 34) { this.coinCount++; Sfx.play('coin'); c.destroy(); this.coinsA = this.coinsA.filter(q => q !== c); }
+      }
+      for (const f of this.cps) if (!f.hit && Math.hypot(p.x - f.cx, p.y - f.cy) < 60) {
+        f.hit = true; f.setTexture('flag_on'); this.cp = { x: f.cx, y: f.cy }; Sfx.play('check');
+        this.hearts = Math.min(this.maxHearts, this.hearts + 2); this.toast('Checkpoint!', 900); this.burst(f.x, f.y - 40, 'star', 8, 70);
+      }
+      if (p.z < 14 && !p.fly) for (const e of this.enemyList) if (e.active && ov(p, e)) this.hurtPlayer(p, e.x, e.y);
+      if (p.fly) for (const e of this.enemyList.slice()) if (e.active && ov(p, e)) this.damageEnemy(e, 2, p.x, p.y);
+    }
+    for (const s of this.signs) s.t.setVisible(this.p.some(p => Math.abs(p.x - s.s.x) < 130 && Math.abs(p.y - s.s.y) < 110));
+  }
+
+  // ───────────────────────── Kette ─────────────────────────
+  tether() {
+    const [a, b] = this.p, time = this.time.now, g = this.chainG; g.clear();
+    if (a.state !== 'normal' || b.state !== 'normal') return;
+    const L = this.kids ? 540 : 440;
+    const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+    if (time > (this.tetherOff || 0) && d > L && !a.fly && !b.fly) {
+      const nx = dx / d, ny = dy / d;
+      const va = a.body.velocity.x * nx + a.body.velocity.y * ny; if (va < 0) a.body.setVelocity(a.body.velocity.x - va * nx, a.body.velocity.y - va * ny);
+      const vb = -(b.body.velocity.x * nx + b.body.velocity.y * ny); if (vb < 0) b.body.setVelocity(b.body.velocity.x + vb * nx, b.body.velocity.y + vb * ny);
+      if (d > L + 120) { a.x += nx * 3; a.y += ny * 3; b.x -= nx * 3; b.y -= ny * 3; }
+    }
+    const n = Math.max(2, Math.floor(d / 14)), slack = Math.max(0, L - d) * 0.14;
+    const px = -dy / d, py = dx / d, x1 = a.x, y1 = a.y - 8, x2 = b.x, y2 = b.y - 8;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, w = Math.sin(t * Math.PI) * Math.min(slack, 40);
+      const x = x1 + (x2 - x1) * t + px * w, y = y1 + (y2 - y1) * t + py * w;
+      g.fillStyle(0xdfe3ea, 1); g.fillCircle(x, y, 4.5); g.lineStyle(2.5, OUT, 1); g.strokeCircle(x, y, 4.5);
+    }
+  }
+
+  // ───────────────────────── Hauptschleife ─────────────────────────
+  update(time, delta) {
+    const dt = Math.min(delta, 50) / 1000;
+    const n = this.nav.poll();
+    for (const p of this.p) p.in = p.ctrl.read();
+    if (this.done) { if (n.ok || this.p.some(p => p.in.jumpEdge)) this.next(); return; }
+    if (this.paused) {
+      if (n.ok) this.setPause(false);
+      if (n.back) this.scene.start('Menu');
+      return;
+    }
+    if (n.back || this.p.some(p => p.in.startEdge)) { this.setPause(true); return; }
+    this.fx.clear();
+    this.updatePuzzles(time, dt);
+    for (const p of this.p) this.updatePlayer(p, dt, time);
+    this.tether();
+    this.updateEnemies(time, dt);
+    if (this.bossObj) this.bossObj.update(dt, time);
+    this.updateShots(time);
+    this.hazards(time);
+    this.touches(time);
+    this.bossTrigger();
+    this.drawFx(time);
+    this.updateCamera();
+    this.updateHud();
+    this.checkExit();
+    for (const c of this.crateList) c.setDepth(c.y);
+    for (const t of this.pickups) if (t.active) t.setDepth(t.y);
+  }
+  bossTrigger() {
+    if (this.bossStarted || !this.bossObj) return;
+    const lim = (this.A + 4) * T;
+    if (this.p.every(p => p.state === 'normal' && p.x > lim)) {
+      this.bossStarted = true; this.bossObj.start();
+      const g = this.lockGate; g.body.enable = true; g.setAlpha(0.9); Sfx.play('gate');
+      const cam = this.cameras.main; cam.stopFollow();
+      this.tweens.add({ targets: cam, scrollX: this.A * T - 16, scrollY: this.AY * T, duration: 900, ease: 'Sine.inOut' });
+      Sfx.music('boss'); Sfx.play('boss');
+    }
+  }
+  drawFx(time) {
+    const g = this.fx;
+    for (const p of this.p) {
+      if (p.state !== 'normal') { p.icon.setVisible(false); continue; }
+      const a = p.aim, mx = p.x + a.x * 26, my = p.y - 10 + a.y * 12;
+      if (p.sucking) {
+        const ang = Math.atan2(a.y, a.x), w = Phaser.Math.DegToRad(50), r = 175;
+        g.fillStyle(0xffffff, 0.16); g.beginPath(); g.moveTo(mx, my); g.arc(mx, my, r, ang - w, ang + w); g.closePath(); g.fillPath();
+        g.lineStyle(3, 0xffffff, 0.5);
+        for (let i = 0; i < 3; i++) { const k = ((time / 400 + i / 3) % 1), rr = r * (1 - k); g.beginPath(); g.arc(mx, my, rr, ang - w * 0.8, ang + w * 0.8); g.strokePath(); }
+      }
+      if (p.holding) {
+        let d = 0; const maxD = LV * FLY_T; let lx = p.x, ly = p.y;
+        while (d < maxD) { const nx = lx + a.x * 12, ny = ly + a.y * 12; if (this.wallPx(nx, ny)) break; lx = nx; ly = ny; d += 12; }
+        const bad = this.pitAt(lx, ly) && !this.onMover(lx, ly);
+        const col = bad ? 0xff5a5a : 0x7dff8a;
+        g.fillStyle(0xffffff, 0.9);
+        for (let i = 1; i < 14; i++) { const t = i / 14; g.fillCircle(p.x + (lx - p.x) * t, p.y + (ly - p.y) * t - Math.sin(t * Math.PI) * 60 - 20, 3.5); }
+        g.lineStyle(5, col, 0.95); g.strokeEllipse(lx, ly, 46 + Math.sin(time / 100) * 4, 24);
+        p.icon.setVisible(true).setPosition(p.x, p.y - 76 + Math.sin(time / 120) * 3).setDepth(p.y + 20);
+      } else p.icon.setVisible(false);
+    }
+  }
+  updateCamera() {
+    if (this.bossStarted) return;
+    const [a, b] = this.p;
+    this.camT.setPosition((a.x + b.x) / 2, (a.y + b.y) / 2);
+  }
+  updateHud() {
+    for (let i = 0; i < this.maxHearts; i++) this.heartI[i].setTexture(this.kids || i < this.hearts ? 'heart' : 'heart_e');
+    this.coinT.setText(String(this.coinCount));
+    this.p.forEach((p, i) => this.ammoT[i].setText('×' + p.ammo));
+    const bo = this.bossObj, g = this.bossG; g.clear();
+    if (bo && bo.started && !bo.dead) {
+      const w = 520, x = W / 2 - w / 2, y = 26;
+      g.fillStyle(OUT, 1); g.fillRoundedRect(x - 5, y - 5, w + 10, 30, 12);
+      g.fillStyle(0x4a2030, 1); g.fillRoundedRect(x, y, w, 20, 8);
+      g.fillStyle(0xff4a5a, 1); g.fillRoundedRect(x, y, Math.max(0, w * bo.hp / bo.maxHp), 20, 8);
+      this.bossName.setVisible(true).setText(bo.title);
+    } else this.bossName.setVisible(false);
+  }
+  checkExit() {
+    if (!this.exitOpen || this.done) return;
+    const e = this.exitPos;
+    const n = this.p.filter(p => p.state === 'normal' && Math.hypot(p.x - e.x, p.y - (e.y + 10)) < 80).length;
+    if (n === 2) this.finish();
+    else if (n === 1) this.toast('Wartet auf den Partner – beide in die Röhre!', 300);
+  }
+  openExit() {
+    this.exitOpen = true; this.exitSpr.setTexture('exit');
+    this.lockGate.body.enable = false; this.lockGate.setAlpha(0);
+    this.toast('Geschafft! Beide in den Müllschlucker!', 3000);
+    this.tweens.add({ targets: this.exitSpr, y: this.exitSpr.y - 8, yoyo: true, repeat: -1, duration: 500 });
+  }
+
+  // ───────────────────────── Pause / Ende ─────────────────────────
+  setPause(on) {
+    this.paused = on; this.physics.world.isPaused = on;
+    this.pauseG.setVisible(on); this.pauseT.setVisible(on);
+    if (on) { this.pauseG.clear().fillStyle(0x000000, 0.65).fillRect(0, 0, W, H); this.pauseT.setText('PAUSE\n\nA / Enter: weiter\nEsc / B: zurück zum Menü'); }
+  }
+  finish() {
+    if (this.done) return; this.done = true; Sfx.music(null); Sfx.play('win');
+    for (const p of this.p) p.body.setVelocity(0, 0);
+    const secs = Math.round((this.time.now - this.t0) / 1000);
+    this.add.graphics().setScrollFactor(0).setDepth(6000).fillStyle(0x000000, 0.7).fillRect(0, 0, W, H);
+    this.add.text(W / 2, 220, 'LEVEL GESCHAFFT!', { fontFamily: FONT, fontSize: '80px', fontStyle: 'bold', color: '#ffe15a', stroke: '#16101f', strokeThickness: 14 }).setOrigin(0.5).setScrollFactor(0).setDepth(6001);
+    this.add.text(W / 2, 360, `Münzen: ${this.coinCount}     Zeit: ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`, { fontFamily: FONT, fontSize: '40px', color: '#fff', stroke: '#16101f', strokeThickness: 8 }).setOrigin(0.5).setScrollFactor(0).setDepth(6001);
+    const hint = this.add.text(W / 2, 480, '▶ Weiter mit A / Enter', { fontFamily: FONT, fontSize: '30px', color: '#fff', stroke: '#16101f', strokeThickness: 6 }).setOrigin(0.5).setScrollFactor(0).setDepth(6001);
+    this.tweens.add({ targets: hint, alpha: 0.3, yoyo: true, repeat: -1, duration: 500 });
+    for (let i = 0; i < 30; i++) this.time.delayedCall(i * 40, () => this.burst(this.p[0].x + Phaser.Math.Between(-300, 300), this.p[0].y + Phaser.Math.Between(-200, 100), 'star', 3, 120));
+  }
+  next() {
+    const lv = this.lv, last = lv >= LEVELS.length - 1;
+    const after = last ? { scene: 'Menu', data: {} } : (LEVELS[lv + 1].story.pre ? { scene: 'Story', data: { id: LEVELS[lv + 1].story.pre, next: { scene: 'Level', data: { level: lv + 1, mode: this.mode } } } } : { scene: 'Level', data: { level: lv + 1, mode: this.mode } });
+    this.scene.start('Story', { id: this.def.story.post, next: after });
+  }
+}
