@@ -362,6 +362,10 @@ class LevelScene extends Phaser.Scene {
   splat(s, tint) {
     if (!s.active) return;
     this.burst(s.x, s.y - 14, 'puff', 5, 70, tint || 0xffffff);
+    // eigener Müll-Schuss: bleibt liegen und ist noch max. 2x aufsaugbar, danach weg
+    if (s.owner !== undefined && !this.def.mini && (s.gen || 0) < 2 && s.vis && !this.wallPx(s.x, s.y) && !this.pitAt(s.x, s.y) && this.at(Math.floor(s.x / T), Math.floor(s.y / T)) === 1) {
+      const t = this.add.image(s.x, s.y, s.vis.texture.key).setDepth(s.y); t.gen = (s.gen || 0) + 1; this.pickups.push(t);
+    }
     this.killActor(s);
   }
 
@@ -716,7 +720,7 @@ class LevelScene extends Phaser.Scene {
       const s = this.physics.add.sprite(x, y, 'dotp').setAlpha(0).setDepth(1.6); this.shotG.add(s);
       s.body.setSize(16, 16); s.body.setVelocity(dx * (full ? 780 : 700), dy * (full ? 780 : 700));
       s.vis = this.add.image(x, y - 22, 'trash' + Phaser.Math.Between(0, 3)).setVisible(false); s.z = 22; s.dmg = full ? 2 : 1; s.big = full; s.owner = p.idx;
-      s.born = this.time.now;
+      s.born = this.time.now; s.gen = (p.gens && p.gens.length) ? p.gens.pop() : 0;
     }
     if (full) { this.shake(120, 0.006); this.burst(p.x + p.aim.x * 30, p.y - 20, 'star', 8, 90); }
     this.burst(p.x + p.aim.x * 30, p.y - 20, 'puff', 3, 40);
@@ -733,7 +737,7 @@ class LevelScene extends Phaser.Scene {
       if (full) { if (time > p.fullMsg) { p.fullMsg = time + 1600; this.toast('Tank voll!  Schieß den Müll weg (X) oder in eine Tonne', 1400); Sfx.play('empty'); } continue; }
       const d = pull(t, 520); t.setDepth(t.y);
       if (d < 22) {
-        p.ammo++; this.trashGot++; Sfx.play('pickup'); this.logTaken('p', t); t.destroy(); this.pickups = this.pickups.filter(q => q !== t);
+        p.ammo++; if (!t.gen) this.trashGot++; (p.gens || (p.gens = [])).push(t.gen || 0); if (p.gens.length > 40) p.gens.shift(); Sfx.play('pickup'); this.logTaken('p', t); t.destroy(); this.pickups = this.pickups.filter(q => q !== t);
         if (p.ammo >= p.maxAmmo) { Sfx.play('burp'); this.toast('Tank VOLL!  Jetzt gibt es Super-Schüsse (X)', 1500); this.burst(p.x, p.y - 40, 'star', 8, 80); }
       }
     }
