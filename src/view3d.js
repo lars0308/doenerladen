@@ -530,7 +530,7 @@ class View3D {
     sync(s.bins, o => { const g = new THREE.Group(); this.place(this.cyl(0.42, 0.36, 0.9, 0x2fa84f), 0, 0.45, 0, g); this.place(this.cyl(0.46, 0.46, 0.1, 0x1d7a38), 0, 0.92, 0, g); this.place(this.cyl(0.3, 0.3, 0.06, 0x16301c), 0, 0.97, 0, g); const rc = this.mesh(new THREE.TorusGeometry(0.2, 0.04, 8, 20), 0xffffff); rc.position.set(0, 0.5, 0.4); g.add(rc); const ar = this.mesh(new THREE.ConeGeometry(0.1, 0.2, 3), 0xffffff); ar.position.set(0, 0.5, 0.42); ar.rotation.z = Math.PI; g.add(ar); g.scale.setScalar(1.35); return g; }, () => 0);
     for (const bn of s.bins) { const m = this.map.get(bn); if (m) { const k = Math.max(0, 1 - (time - bn.t0) / 300); m.o.scale.setScalar(1.35 * (1 + 0.18 * Math.sin(k * 6.28) * k)); } }
     sync(s.coinsA, o => (o.val > 1 ? a3clone('p:jewel', 3.2) : a3clone('p:coin-gold', 2.2)), (o, t) => 0.35 + Math.sin(t / 300 + o.x) * 0.06);
-    sync(s.pickups, o => (o.model ? a3clone(o.model, o.model[0] === 'g' ? 1.5 : 2.2) : a3clone(this.foodFor(o.texture.key, o.x, o.y), 1.5)), (o, t) => 0.05 + Math.abs(Math.sin(t / 400 + o.x)) * 0.12);
+    sync(s.pickups, o => (o.model ? a3clone(o.model, o.model[0] === 'g' ? 1.3 : 1.5) : a3clone(this.foodFor(o.texture.key, o.x, o.y), 1.5)), (o, t) => 0.05 + Math.abs(Math.sin(t / 400 + o.x)) * 0.12);
     for (const c of s.coinsA) { const m = this.map.get(c); if (m) m.o.rotation.y = time / 300 + c.x; }
     for (const t of s.pickups) { const m = this.map.get(t); if (m) m.o.rotation.y = time / 500; }
     for (const [k, m] of this.map) if (!k.type && !seen.has(k)) { sc.remove(m.o); this.map.delete(k); }

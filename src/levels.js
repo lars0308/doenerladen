@@ -27,8 +27,9 @@ const LEVELS = [
       s.floor(68, 13, 8, 4); s.gate('r1', 68, 13, 1, 4, 'red');
       s.checkpoint(72, 14);
       // Große offene Fläche mit Hindernissen, Plateau (nur per Trampolin erreichbar) und viel Müll
-      s.field(76, 4, 40, 20, { enemies: [['walker',5],['flyer',3],['armor',2],['charger',2],['jumper',3],['kamikaze',2]], coins: 8, avoid: [[87, 6, 21, 12]] });
+      s.field(76, 4, 40, 20, { enemies: [['walker',5],['flyer',3],['armor',2],['charger',2],['jumper',3],['kamikaze',2]], coins: 8, avoid: [[87, 6, 21, 12], [105, 13, 9, 11]] });
       s.plateau(92, 9, 10, 8, 2.2); s.coins(94, 11, 6); s.food(97, 12, 'cake'); s.checkpoint(78, 14);
+      s.plateau(106, 15, 7, 7, 1.6); s.coins(107, 18, 4); s.food(109, 18, 'burger');
       s.ox = 40;
       s.floor(76, 6, 22, 17); s.pit(84, 6, 7, 17);
       s.sign(78, 14, 'Zu weit! Partner einsaugen (B), zielen,\nX = rüberwerfen. Grün = sicher.\nDann auf die Platte stellen!');
@@ -69,8 +70,9 @@ const LEVELS = [
       s.crates(75, 12, 1, 3, true);
 
       // Große offene Fläche mit Hindernissen, Plateau (nur per Trampolin erreichbar) und viel Müll
-      s.field(92, 4, 40, 20, { enemies: [['walker',4],['archer',3],['flyer',3],['charger',2],['sawer',3],['kamikaze',3],['jumper',2]], coins: 8, avoid: [[103, 6, 21, 12]] });
+      s.field(92, 4, 40, 20, { enemies: [['walker',4],['archer',3],['flyer',3],['charger',2],['sawer',3],['kamikaze',3],['jumper',2]], coins: 8, avoid: [[103, 6, 21, 12], [121, 13, 9, 11]] });
       s.plateau(108, 9, 10, 8, 2.2); s.coins(110, 11, 6); s.food(113, 12, 'cake'); s.checkpoint(94, 14);
+      s.plateau(122, 15, 7, 7, 1.6); s.coins(123, 18, 4); s.food(125, 18, 'burger');
       s.ox = 40;
       s.floor(92, 13, 8, 4); s.checkpoint(96, 14);
       s.floor(100, 5, 26, 15);
@@ -107,8 +109,9 @@ const LEVELS = [
       s.enemy('archer', 94, 8); s.enemy('archer', 94, 20); s.trash(79, 14); s.trash(90, 14); s.coins(90, 12, 4, 0, 1);
 
       // Große offene Fläche mit Hindernissen, Plateau (nur per Trampolin erreichbar) und viel Müll
-      s.field(96, 4, 40, 20, { enemies: [['walker',3],['armor',3],['archer',3],['charger',2],['flyer',3],['sawer',3],['kamikaze',3],['jumper',2]], coins: 8, avoid: [[107, 6, 21, 12]] });
+      s.field(96, 4, 40, 20, { enemies: [['walker',3],['armor',3],['archer',3],['charger',2],['flyer',3],['sawer',3],['kamikaze',3],['jumper',2]], coins: 8, avoid: [[107, 6, 21, 12], [125, 13, 9, 11]] });
       s.plateau(112, 9, 10, 8, 2.2); s.coins(114, 11, 6); s.food(117, 12, 'cake'); s.checkpoint(98, 14);
+      s.plateau(126, 15, 7, 7, 1.6); s.coins(127, 18, 4); s.food(129, 18, 'burger');
       s.ox = 40;
       s.floor(96, 13, 6, 4); s.checkpoint(98, 14);
       s.floor(102, 5, 26, 15);
@@ -149,8 +152,9 @@ const LEVELS = [
       s.trash(94, 8); s.trash(106, 20); s.trash(99, 12); s.crates(100, 19, 2, 2, true); s.coins(93, 7, 5);
       s.checkpoint(106, 15);
       // Große offene Fläche mit Hindernissen, Plateau (nur per Trampolin erreichbar) und viel Müll
-      s.field(108, 4, 40, 20, { enemies: [['walker',3],['archer',4],['drake',2],['armor',2],['ghost',2],['jumper',3],['kamikaze',2]], coins: 8, avoid: [[119, 6, 21, 12]] });
+      s.field(108, 4, 40, 20, { enemies: [['walker',3],['archer',4],['drake',2],['armor',2],['ghost',2],['jumper',3],['kamikaze',2]], coins: 8, avoid: [[119, 6, 21, 12], [137, 13, 9, 11]] });
       s.plateau(124, 9, 10, 8, 2.2); s.coins(126, 11, 6); s.food(129, 12, 'cake'); s.checkpoint(110, 14);
+      s.plateau(138, 15, 7, 7, 1.6); s.coins(139, 18, 4); s.food(141, 18, 'burger');
       s.ox = 40;
       s.floor(108, 13, 1, 4);
       s.floor(109, 5, 26, 15);
@@ -188,8 +192,9 @@ const LEVELS = [
       s.enemy('flyer', 90, 10); s.spawner(97, 17, 'walker', 7, 2); s.coins(96, 11, 3, 0, 1);
       s.checkpoint(98, 17);
       // Große offene Fläche mit Hindernissen, Plateau (nur per Trampolin erreichbar) und viel Müll
-      s.field(100, 4, 40, 20, { enemies: [['archer',3],['flyer',3],['armor',2],['ghost',4],['kamikaze',3],['jumper',2]], coins: 8, avoid: [[111, 6, 21, 12]], spawners: 3 });
+      s.field(100, 4, 40, 20, { enemies: [['archer',3],['flyer',3],['armor',2],['ghost',4],['kamikaze',3],['jumper',2]], coins: 8, avoid: [[111, 6, 21, 12], [129, 13, 9, 11]], spawners: 3 });
       s.plateau(116, 9, 10, 8, 2.2); s.coins(118, 11, 6); s.food(121, 12, 'cake'); s.checkpoint(102, 14);
+      s.plateau(130, 15, 7, 7, 1.6); s.coins(131, 18, 4); s.food(133, 18, 'burger');
       s.ox = 40;
       s.floor(100, 13, 1, 4);
       s.floor(101, 5, 26, 15);
@@ -228,8 +233,9 @@ const LEVELS = [
       s.trash(93, 10); s.trash(93, 18); s.trash(94, 14); s.coins(106, 9, 4, 0, 1);
 
       // Große offene Fläche mit Hindernissen, Plateau (nur per Trampolin erreichbar) und viel Müll
-      s.field(110, 4, 40, 20, { enemies: [['archer',3],['charger',3],['armor',2],['flyer',3],['drake',2],['sawer',4],['kamikaze',3],['jumper',2]], coins: 8, avoid: [[121, 6, 21, 12]] });
+      s.field(110, 4, 40, 20, { enemies: [['archer',3],['charger',3],['armor',2],['flyer',3],['drake',2],['sawer',4],['kamikaze',3],['jumper',2]], coins: 8, avoid: [[121, 6, 21, 12], [139, 13, 9, 11]] });
       s.plateau(126, 9, 10, 8, 2.2); s.coins(128, 11, 6); s.food(131, 12, 'cake'); s.checkpoint(112, 14);
+      s.plateau(140, 15, 7, 7, 1.6); s.coins(141, 18, 4); s.food(143, 18, 'burger');
       s.ox = 40;
       s.floor(110, 13, 6, 4); s.checkpoint(112, 14);
       s.floor(116, 5, 26, 15);
