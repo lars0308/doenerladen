@@ -430,7 +430,7 @@ class View3D {
       this.anim(pm, a); pm.mixer.update(dt * (a === 'walk' ? Math.max(0.7, spd / 150) : a === 'sprint' ? 1.1 : 1));
       pm.sh.position.set(p.x / T1, pm.el + 0.03, p.y / T1); pm.sh.material.opacity = Math.max(0.15, 0.6 - h * 0.25);
       pm.model.visible = !(time < p.inv && Math.floor(time / 70) % 2);
-      handLocal(pm.model, pm.yawG, pm.hand); updateVac(pm.vac, pm.hand, time, p.sucking, p.ammo / p.maxAmmo);
+      handLocal(pm.model, pm.yawG, pm.hand); updateVac(pm.vac, pm.hand, time, p.sucking, Math.min(1, (p.ammo + 2) / 14));
       pm.vac.userData.ring.getWorldPosition(_v3); if (p.sucking && isFinite(_v3.x)) p.mouth = { x: _v3.x * T1, y: _v3.z * T1 }; else p.mouth = null;
       const pwk = p.pw && time < p.pw.until ? p.pw.kind : null, isBall = pwk === 'ball';
       pm.model.visible = pm.model.visible && !isBall; pm.vac.visible = !p.fly && p.state !== 'down' && !isBall;
