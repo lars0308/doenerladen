@@ -79,6 +79,15 @@ function makeVacuum(css) {
 function cloneMats(o) { if (o.material) o.material = Array.isArray(o.material) ? o.material.map(m => m.clone()) : o.material.clone(); }
 function eachMat(o, fn) { if (!o.material) return; (Array.isArray(o.material) ? o.material : [o.material]).forEach(fn); }
 
+// Gibt alle GPU-Ressourcen einer Szene frei (verhindert Speicherwachstum zwischen Leveln)
+function disposeScene(scene) {
+  scene.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { for (const k in m) { const t = m[k]; if (t && t.isTexture) t.dispose(); } m.dispose(); });
+  });
+  if (scene.background && scene.background.isTexture) scene.background.dispose();
+}
+
 class View3D {
   constructor(scene) {
     this.s = scene; this.th = TH3[scene.theme];
@@ -202,6 +211,13 @@ class View3D {
       const m = new THREE.Mesh(new THREE.BoxGeometry(cv.r.width / T, 0.16, cv.r.height / T), [this.M(0x2a2d36), this.M(0x2a2d36), new THREE.MeshLambertMaterial({ map: tx }), this.M(0x2a2d36), this.M(0x2a2d36), this.M(0x2a2d36)]);
       m.position.set((cv.r.x + cv.r.width / 2) / T, 0.08, (cv.r.y + cv.r.height / 2) / T); sc.add(m); cv.tx = tx;
     }
+    for (const r of s.icesA) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(r.width / T, r.height / T), new THREE.MeshLambertMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.5, emissive: 0x2a5a7a }));
+      m.rotation.x = -Math.PI / 2; m.position.set((r.x + r.width / 2) / T, 0.04, (r.y + r.height / 2) / T); sc.add(m);
+    }
+    for (const sp of s.springsA) { const m = a3clone('p:spring', 1.7); m.position.set(sp.x / T1, 0, sp.y / T1); sc.add(m); sp.m3 = m; }
+    for (const sp of s.spawners) { const m = a3clone('g:gravestone-cross', 1.9); m.position.set(sp.x / T1, 0, sp.y / T1); sc.add(m); sp.m3 = m; }
+    for (const isl of s.islands) { const lab = nameSprite('+' + isl.pts, '#ffd23f'); lab.position.set(isl.cx / T1, 1.6, isl.cy / T1); lab.scale.set(2.4, 0.6, 1); sc.add(lab); }
     for (const l of s.lasers) {
       const r = l.r, cx = (r.x + r.w / 2) / T, cz = (r.y + r.h / 2) / T;
       for (const e of (l.dir === 'h' ? [[r.x / T, cz], [(r.x + r.w) / T, cz]] : [[cx, r.y / T], [cx, (r.y + r.h) / T]])) { this.place(this.cyl(0.22, 0.28, 0.9, 0x555d6e), e[0], 0.45, e[1], sc); this.place(this.sph(0.16, 0xff4a4a, { emissive: 0xff2020 }), e[0], 1.0, e[1], sc); }
@@ -366,6 +382,7 @@ class View3D {
       if (m.sk.fbx === 'Bat' || m.sk.fbx === 'Dragon') this.eAnim(m, 'flying');
       m.mixer.update(dt);
       this.flash(m.root, e.vis.isTinted && e.vis.tintFill, e.vis.isTinted && !e.vis.tintFill);
+      if (e.gold && !m.goldDone) { m.goldDone = true; m.root.traverse(o => { if (o.isMesh) eachMat(o, q => { if (q.color) q.color.set(0xffd23f); if (q.emissive) q.emissive.set(0x886600); }); }); }
     }
     for (const [k, m] of this.map) if (k.type && k.cfg && !alive.has(k)) { m.dying = time; this.dying.push(m); this.map.delete(k); }
     for (let i = this.dying.length - 1; i >= 0; i--) {
@@ -421,11 +438,12 @@ class View3D {
       }
     };
     sync(s.crateList, o => { const c = a3clone(o.loot ? 'p:crate-item' : 'p:crate', 1.9); c.rotation.y = (o.x * 7 % 3) * 0.1; return c; }, () => 0);
-    sync(s.coinsA, () => a3clone('p:coin-gold', 2.2), (o, t) => 0.35 + Math.sin(t / 300 + o.x) * 0.06);
+    sync(s.coinsA, o => (o.val > 1 ? a3clone('p:jewel', 3.2) : a3clone('p:coin-gold', 2.2)), (o, t) => 0.35 + Math.sin(t / 300 + o.x) * 0.06);
     sync(s.pickups, o => a3clone(this.foodFor(o.texture.key, o.x, o.y), 1.5), (o, t) => 0.05 + Math.abs(Math.sin(t / 400 + o.x)) * 0.12);
     for (const c of s.coinsA) { const m = this.map.get(c); if (m) m.o.rotation.y = time / 300 + c.x; }
     for (const t of s.pickups) { const m = this.map.get(t); if (m) m.o.rotation.y = time / 500; }
     for (const [k, m] of this.map) if (!k.type && !seen.has(k)) { sc.remove(m.o); this.map.delete(k); }
+    for (const sp of s.springsA) { const k = Math.max(0, 1 - (time - sp.t0) / 300); sp.m3.scale.set(1.7, 1.7 * (1 - 0.4 * k) + 0.4 * Math.sin(time / 40) * k, 1.7); }
     for (const f of s.cps) if (f.hit && !f.done) { f.done = true; f.m3.traverse(o => { if (o.isMesh) { cloneMats(o); eachMat(o, m => { m.emissive = new THREE.Color(0x22aa44); }); } }); }
     for (const t of s.targets) { const on = t.isOn, col = t.m3.userData.col; t.rings[0].material = this.M(on ? 0xffffff : 0xdddddd, { emissive: on ? col : 0 }); t.rings[1].material = this.M(on ? col : 0x8a8a98, { emissive: on ? col : 0, emissiveIntensity: 0.6 }); t.rings[2].material = this.M(on ? 0xffffff : 0x6a6a78, { emissive: on ? 0xffffff : 0 }); t.m3.scale.setScalar(on ? 1 + Math.sin(time / 90) * 0.04 : 1); }
     for (const p of s.plates) { p.m3.position.y = p.pressed ? 0.02 : 0.06; p.m3.scale.y = p.pressed ? 0.4 : 1; p.m3.material = this.M(GATE3[p.color], { emissive: p.ever ? GATE3[p.color] : 0, emissiveIntensity: 0.5 }); }
@@ -500,12 +518,14 @@ class View3D {
   project(x, y, h = 1.2) { const v = new THREE.Vector3(x / T, h, y / T).project(this.cam); return { x: (v.x * 0.5 + 0.5) * W, y: (-v.y * 0.5 + 0.5) * H }; }
   updateCamera(dt, time) {
     const s = this.s, [a, b] = s.p, c = this.cam; let tx, tz, h, dz;
-    if (s.bossStarted) { const r = s.arenaR; tx = (r.x + r.w / 2) / T; tz = (r.y + r.h / 2) / T + 0.9; h = 20.5; dz = 12.5; }
+    const cf = s.def.camFixed;
+    if (cf) { tx = cf.x; tz = cf.z; h = cf.h; dz = cf.dz; }
+    else if (s.bossStarted) { const r = s.arenaR; tx = (r.x + r.w / 2) / T; tz = (r.y + r.h / 2) / T + 0.9; h = 20.5; dz = 12.5; }
     else { const sep = Math.hypot(a.x - b.x, a.y - b.y) / T; tx = (a.x + b.x) / 2 / T; tz = (a.y + b.y) / 2 / T; h = 11.5 + Math.min(5, sep * 0.6); dz = h * 0.7; }
     const k = Math.min(1, dt * (s.bossStarted ? 2.2 : 4.5));
     this.cx += (tx - this.cx) * k; this.cz += (tz - this.cz) * k; this.ch += (h - this.ch) * k; this.dz = (this.dz === undefined ? dz : this.dz + (dz - this.dz) * k);
     let ox = 0, oy = 0; if (this.shakeT > 0) { this.shakeT -= dt; ox = (Math.random() - 0.5) * this.shakeI * 0.05; oy = (Math.random() - 0.5) * this.shakeI * 0.05; }
     c.position.set(this.cx + ox, this.ch + oy, this.cz + this.dz); c.lookAt(this.cx + ox, 0, this.cz - 0.6);
   }
-  dispose() { document.getElementById('three').style.display = 'none'; }
+  dispose() { document.getElementById('three').style.display = 'none'; disposeScene(this.scene); this.r.renderLists.dispose(); }
 }

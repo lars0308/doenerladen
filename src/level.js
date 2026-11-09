@@ -22,8 +22,9 @@ class LevelScene extends Phaser.Scene {
   create() {
     const def = this.def = LEVELS[this.lv];
     this.theme = def.theme; this.gw = def.size[0]; this.gh = def.size[1];
-    this.A = def.arena[0]; this.AY = def.arena[1];
+    this.A = def.arena ? def.arena[0] : 0; this.AY = def.arena ? def.arena[1] : 0;
     this.arenaR = { x: this.A * T, y: this.AY * T, w: 26 * T, h: 15 * T };
+    this.mini = null; this.miniText = ''; this.springsA = []; this.icesA = []; this.spawners = []; this.islands = [];
     this.t0 = this.time.now; this.coinCount = 0; this.paused = false; this.done = false;
     this.coinsA = []; this.pickups = []; this.crateList = []; this.enemyList = []; this.groups = {};
     this.gates = []; this.bridges = []; this.targets = []; this.plates = []; this.spikesA = []; this.moversA = [];
@@ -49,6 +50,7 @@ class LevelScene extends Phaser.Scene {
     def.build(this);
     this.finalize();
     this.makePlayers();
+    if (def.mini) this.mini = new MiniGames[def.mini](this);
     this.setupColliders();
     this.nav = new MenuNav(this);
     this.v3 = new View3D(this);
@@ -98,8 +100,8 @@ class LevelScene extends Phaser.Scene {
   // ── Objekte (Koordinaten in Kacheln) ──
   cx(x) { return x * T + T / 2; }
   cy(y) { return y * T + T / 2; }
-  coin(x, y) {
-    const c = this.add.image(this.cx(x), this.cy(y) - 6, 'coin').setDepth(this.cy(y));
+  coin(x, y, val = 1) {
+    const c = this.add.image(this.cx(x), this.cy(y) - 6, 'coin').setDepth(this.cy(y)); c.val = val; c.born = this.time.now;
     this.tweens.add({ targets: c, scaleX: 0.3, yoyo: true, repeat: -1, duration: 500 + Math.random() * 200 });
     this.coinsA.push(c);
   }
@@ -161,6 +163,10 @@ class LevelScene extends Phaser.Scene {
     if (dirx < 0) c.setFlipX(true);
     this.convs.push({ v: c, r: new Phaser.Geom.Rectangle(x * T, y * T, w * T, h * T), d: dirx, spd: speed * (this.kids ? 0.6 : 1) });
   }
+  ice(x, y, w, h) { this.icesA.push(new Phaser.Geom.Rectangle(x * T, y * T, w * T, h * T)); }
+  spring(x, y) { this.springsA.push({ x: this.cx(x), y: this.cy(y), cd: 0, t0: -999 }); }
+  spawner(x, y, type, period, max) { this.spawners.push({ x: this.cx(x), y: this.cy(y), type, period, max, next: 0, kids: [] }); }
+  island(x, y, w, h, pts) { this.floor(x, y, w, h); this.islands.push({ x: x * T, y: y * T, w: w * T, h: h * T, pts, cx: (x + w / 2) * T, cy: (y + h / 2) * T }); }
   checkpoint(x, y) {
     const f = this.add.image(this.cx(x), (y + 1) * T - 4, 'flag').setOrigin(0.5, 1).setDepth((y + 1) * T);
     f.cx = this.cx(x); f.cy = this.cy(y); f.hit = false; this.cps.push(f);
@@ -255,6 +261,7 @@ class LevelScene extends Phaser.Scene {
     if (e.hp <= 0) this.killEnemy(e);
   }
   killEnemy(e) {
+    if (this.mini && this.mini.onKill) this.mini.onKill(e);
     Sfx.play('pop');
     this.burst(e.x, e.y - 20, 'puff', 8, 90, 0xdddddd); this.burst(e.x, e.y - 20, 'star', 4, 80);
     this.dropCoin(e.x, e.y, Phaser.Math.Between(1, 2));
@@ -362,7 +369,7 @@ class LevelScene extends Phaser.Scene {
     v.normalize().scale(300); p.body.setVelocity(v.x, v.y); p.hop = null; p.z = 0;
     Sfx.play('hurt'); this.burst(p.x, p.y - 20, 'star', 5, 60);
     if (p.holding) this.release(p, false);
-    if (!this.kids) { this.hearts--; if (this.hearts <= 0) this.teamDown(); }
+    if (!this.kids && !this.mini) { this.hearts--; if (this.hearts <= 0) this.teamDown(); }
   }
   teamDown() {
     if (this.downing) return; this.downing = true;
@@ -390,7 +397,7 @@ class LevelScene extends Phaser.Scene {
     this.tweens.add({ targets: p.vis, scale: 0.1, angle: 360, duration: 600 });
   }
   afterFall(p) {
-    if (!this.kids) { this.hearts--; if (this.hearts <= 0) { this.teamDown(); return; } }
+    if (!this.kids && !this.mini) { this.hearts--; if (this.hearts <= 0) { this.teamDown(); return; } }
     this.toast(this.kids ? 'Plumps! Weiter geht\'s.' : '', 700);
     this.placeAt(p, p.lastSafe.x, p.lastSafe.y);
   }
@@ -413,6 +420,7 @@ class LevelScene extends Phaser.Scene {
   }
   landFly(p) {
     p.fly = null; p.z = 0; p.body.setVelocity(0, 0); p.lockUntil = 0;
+    if (this.mini && this.mini.onLand) this.mini.onLand(p);
     this.burst(p.x, p.y, 'puff', 6, 50);
     for (const e of this.enemyList.slice()) if (e.active && ov(p, e)) this.damageEnemy(e, 2, p.x, p.y);
   }
@@ -437,18 +445,19 @@ class LevelScene extends Phaser.Scene {
       b.setVelocity(p.fly.vx, p.fly.vy);
       if (p.fly.t >= FLY_T || b.blocked.left || b.blocked.right || b.blocked.up || b.blocked.down) this.landFly(p);
     } else if (p.hop) {
-      p.hop.t += dt; p.z = Math.sin(Math.min(1, p.hop.t / HOP_T) * Math.PI) * 50;
+      p.hop.t += dt; p.z = Math.sin(Math.min(1, p.hop.t / p.hop.dur) * Math.PI) * p.hop.h;
       b.setVelocity(p.hop.vx, p.hop.vy);
-      if (p.hop.t >= HOP_T || b.blocked.left || b.blocked.right || b.blocked.up || b.blocked.down) this.endHop(p);
+      if (p.hop.t >= p.hop.dur || b.blocked.left || b.blocked.right || b.blocked.up || b.blocked.down) this.endHop(p);
     } else if (!locked) {
       let tx = mx * speed, ty = my * speed;
       const onConv = this.convs.find(cv => cv.r.contains(p.x, p.y));
       if (onConv) tx += onConv.d * onConv.spd;
-      const a = 3400 * dt;
+      const onIce = this.icesA.length && this.icesA.some(r => r.contains(p.x, p.y));
+      const a = (onIce ? 520 : 3400) * dt;
       b.setVelocity(approach(b.velocity.x, tx, a), approach(b.velocity.y, ty, a));
       if (c.jumpEdge && time > p.hopCd) {
         const hv = ml >= 0.3 ? { x: mx / ml, y: my / ml } : p.aim;
-        p.hop = { t: 0, vx: hv.x * HOP_V, vy: hv.y * HOP_V }; Sfx.play('jump'); this.burst(p.x, p.y, 'puff', 3, 30);
+        p.hop = { t: 0, dur: HOP_T, h: 50, vx: hv.x * HOP_V, vy: hv.y * HOP_V }; Sfx.play('jump'); this.burst(p.x, p.y, 'puff', 3, 30);
       }
     }
     const air = p.fly || p.hop;
@@ -630,14 +639,27 @@ class LevelScene extends Phaser.Scene {
         if (!c.active) continue;
         const d = Math.hypot(c.x - p.x, c.y - (p.y - 16));
         if (d < mag && d > 1) { c.x += (p.x - c.x) / d * Math.min(7, d); c.y += (p.y - 16 - c.y) / d * Math.min(7, d); }
-        if (d < 34) { this.coinCount++; Sfx.play('coin'); c.destroy(); this.coinsA = this.coinsA.filter(q => q !== c); }
+        if (d < 34) { this.coinCount += (c.val || 1); Sfx.play('coin'); c.destroy(); this.coinsA = this.coinsA.filter(q => q !== c); }
       }
       for (const f of this.cps) if (!f.hit && Math.hypot(p.x - f.cx, p.y - f.cy) < 60) {
         f.hit = true; f.setTexture('flag_on'); this.cp = { x: f.cx, y: f.cy }; Sfx.play('check');
         this.hearts = Math.min(this.maxHearts, this.hearts + 2); this.toast('Checkpoint!', 900); this.burst(f.x, f.y - 40, 'star', 8, 70);
       }
-      if (p.z < 14 && !p.fly) for (const e of this.enemyList) if (e.active && ov(p, e)) this.hurtPlayer(p, e.x, e.y);
+      if (p.z < 14 && !p.fly) for (const e of this.enemyList) if (e.active && !e.harmless && ov(p, e)) this.hurtPlayer(p, e.x, e.y);
       if (p.fly) for (const e of this.enemyList.slice()) if (e.active && ov(p, e)) this.damageEnemy(e, 2, p.x, p.y);
+    }
+    for (const sp of this.springsA) for (const p of this.p) {
+      if (p.state === 'normal' && !p.hop && !p.fly && time > sp.cd && Math.hypot(p.x - sp.x, p.y - sp.y) < 30) {
+        const v = p.body.velocity, sp_ = Math.hypot(v.x, v.y), d = sp_ > 40 ? { x: v.x / sp_, y: v.y / sp_ } : p.aim;
+        p.hop = { t: 0, dur: 0.8, h: 110, vx: d.x * 650, vy: d.y * 650 }; sp.cd = time + 700; sp.t0 = time; Sfx.play('jump'); this.burst(sp.x, sp.y, 'puff', 6, 50);
+      }
+    }
+    for (const sp of this.spawners) {
+      sp.kids = sp.kids.filter(e => e.active);
+      if (time > sp.next && sp.kids.length < sp.max && this.p.some(p => Math.hypot(p.x - sp.x, p.y - sp.y) < 640)) {
+        sp.next = time + sp.period * 1000 * (this.kids ? 1.5 : 1);
+        const e = this.spawnEnemy(sp.type, sp.x, sp.y + 34); sp.kids.push(e); sp.t0 = time; this.burst(sp.x, sp.y + 20, 'puff', 8, 60, 0x8a7a6a); Sfx.play('pop');
+      }
     }
     const ns = this.signs.find(sg => this.p.some(p => Math.abs(p.x - sg.s.x) < 130 && Math.abs(p.y - sg.s.y) < 110));
     const stxt = ns ? ns.text : null; if (stxt !== this.lastSign) { this.lastSign = stxt; this.hudCall('sign', stxt); }
@@ -683,6 +705,7 @@ class LevelScene extends Phaser.Scene {
     this.updateEnemies(time, dt);
     if (this.bossObj) this.bossObj.update(dt, time);
     this.updateZones(time, dt);
+    if (this.mini && !this.done) this.mini.update(dt, time);
     this.updateShots(time);
     this.hazards(time);
     this.touches(time);
@@ -728,11 +751,18 @@ class LevelScene extends Phaser.Scene {
   finish() {
     if (this.done) return; this.done = true; Sfx.music(null); Sfx.play('win');
     for (const p of this.p) p.body.setVelocity(0, 0);
-    this.hudCall('finish', this.coinCount, Math.round((this.time.now - this.t0) / 1000));
+    this.hudCall('sign', null); this.hudCall('finish', this.coinCount, Math.round((this.time.now - this.t0) / 1000));
     for (let i = 0; i < 30; i++) this.time.delayedCall(i * 40, () => this.burst(this.p[0].x + Phaser.Math.Between(-300, 300), this.p[0].y + Phaser.Math.Between(-200, 100), 'star', 3, 160));
   }
+  endMini(score, stars, label) {
+    if (this.done) return; this.done = true; Sfx.music(null); Sfx.play('win');
+    for (const p of this.p) p.body.setVelocity(0, 0);
+    this.hudCall('sign', null); this.hudCall('finishMini', this.def.name, score, stars, label);
+    for (let i = 0; i < 24; i++) this.time.delayedCall(i * 45, () => this.burst(this.p[0].x + Phaser.Math.Between(-300, 300), this.p[0].y + Phaser.Math.Between(-200, 100), 'star', 3, 160));
+  }
   next() {
-    const lv = this.lv, last = lv >= LEVELS.length - 1;
+    if (this.def.mini) { this.scene.start('Minigames'); return; }
+    const lv = this.lv, last = lv >= STORY_COUNT - 1;
     const after = last ? { scene: 'Menu', data: {} } : (LEVELS[lv + 1].story.pre ? { scene: 'Story', data: { id: LEVELS[lv + 1].story.pre, next: { scene: 'Level', data: { level: lv + 1, mode: this.mode } } } } : { scene: 'Level', data: { level: lv + 1, mode: this.mode } });
     this.scene.start('Story', { id: this.def.story.post, next: after });
   }

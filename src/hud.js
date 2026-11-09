@@ -20,6 +20,7 @@ class HudScene extends Phaser.Scene {
     this.bossName = this.add.text(W / 2, 62, '', st(24)).setOrigin(0.5, 0).setVisible(false);
     this.msg = this.add.text(W / 2, 150, '', st(38, { align: 'center', strokeThickness: 8 })).setOrigin(0.5).setAlpha(0);
     this.signT = this.add.text(W / 2, H - 120, '', { fontFamily: FONT, fontSize: '26px', color: '#16101f', backgroundColor: '#fff6d2', padding: { x: 18, y: 12 }, align: 'center' }).setOrigin(0.5, 1).setVisible(false);
+    this.miniT = this.add.text(W / 2, 40, '', { fontFamily: FONT, fontSize: '52px', color: '#ffe15a', stroke: '#16101f', strokeThickness: 10 }).setOrigin(0.5).setVisible(false);
     this.fadeR = this.add.rectangle(0, 0, W, H, 0x000000, 1).setOrigin(0).setAlpha(0).setDepth(900);
     this.pauseG = this.add.rectangle(0, 0, W, H, 0x000000, 0.65).setOrigin(0).setVisible(false).setDepth(950);
     this.pauseT = this.add.text(W / 2, H / 2, '', st(40, { align: 'center', strokeThickness: 8 })).setOrigin(0.5).setVisible(false).setDepth(951);
@@ -31,6 +32,7 @@ class HudScene extends Phaser.Scene {
     for (let i = 0; i < 5; i++) this.heartI[i].setTexture(L.kids || i < L.hearts ? 'heart' : 'heart_e');
     this.coinT.setText(String(L.coinCount));
     L.p.forEach((p, i) => this.ammoT[i].setText('×' + p.ammo));
+    this.miniT.setVisible(!!L.mini).setText(L.miniText || '');
     const bo = L.bossObj, g = this.bossG; g.clear();
     if (bo && bo.started && !bo.dead) {
       const w = 520, x = W / 2 - w / 2, y = 26;
@@ -62,6 +64,15 @@ class HudScene extends Phaser.Scene {
     this.fin.push(this.add.text(W / 2, 220, 'LEVEL GESCHAFFT!', { fontFamily: FONT, fontSize: '84px', color: '#ffe15a', stroke: '#16101f', strokeThickness: 14 }).setOrigin(0.5).setDepth(961));
     this.fin.push(this.add.text(W / 2, 360, `Münzen: ${coins}     Zeit: ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`, { fontFamily: FONT, fontSize: '44px', color: '#fff', stroke: '#16101f', strokeThickness: 8 }).setOrigin(0.5).setDepth(961));
     const hint = this.add.text(W / 2, 480, '▶ Weiter mit A / Enter', { fontFamily: FONT, fontSize: '32px', color: '#fff', stroke: '#16101f', strokeThickness: 6 }).setOrigin(0.5).setDepth(961);
+    this.tweens.add({ targets: hint, alpha: 0.3, yoyo: true, repeat: -1, duration: 500 }); this.fin.push(hint);
+  }
+  finishMini(name, score, stars, label) {
+    this.fin.push(this.add.rectangle(0, 0, W, H, 0x000000, 0.72).setOrigin(0).setDepth(960));
+    this.fin.push(this.add.text(W / 2, 170, name, { fontFamily: FONT, fontSize: '70px', color: '#ffe15a', stroke: '#16101f', strokeThickness: 12 }).setOrigin(0.5).setDepth(961));
+    this.fin.push(this.add.text(W / 2, 290, 'Punkte: ' + score, { fontFamily: FONT, fontSize: '64px', color: '#fff', stroke: '#16101f', strokeThickness: 10 }).setOrigin(0.5).setDepth(961));
+    this.fin.push(this.add.text(W / 2, 390, '★'.repeat(stars) + '☆'.repeat(3 - stars), { fontFamily: FONT, fontSize: '96px', color: '#ffd23f', stroke: '#16101f', strokeThickness: 12 }).setOrigin(0.5).setDepth(961));
+    this.fin.push(this.add.text(W / 2, 480, label, { fontFamily: FONT, fontSize: '40px', color: '#fff', stroke: '#16101f', strokeThickness: 8 }).setOrigin(0.5).setDepth(961));
+    const hint = this.add.text(W / 2, 580, '▶ Weiter mit A / Enter', { fontFamily: FONT, fontSize: '32px', color: '#fff', stroke: '#16101f', strokeThickness: 6 }).setOrigin(0.5).setDepth(961);
     this.tweens.add({ targets: hint, alpha: 0.3, yoyo: true, repeat: -1, duration: 500 }); this.fin.push(hint);
   }
 }

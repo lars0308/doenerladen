@@ -1,3 +1,4 @@
+const FONT = '"Lilita One", "Comic Sans MS", "Trebuchet MS", Verdana, sans-serif';
 // Spieler-Einstellungen (Namen & Farben), werden im Browser gespeichert.
 const Cfg = {
   players: [{ name: 'Spieler 1', color: 'blue' }, { name: 'Spieler 2', color: 'green' }],

@@ -39,7 +39,7 @@ class Showcase3D {
     root.add(model); root.position.set(o.x || 0, 0, o.z || 0); root.rotation.y = o.yaw || 0;
     const mixer = new THREE.AnimationMixer(model), acts = {}; a3anims(o.model || 'p:character-oobi').forEach(a => { acts[a.name] = mixer.clipAction(a); });
     const ch = { root, model, mixer, acts, cur: null, base: { x: o.x || 0, z: o.z || 0 } };
-    if (o.color) { const col = PLAYER_COLORS.find(c => c.id === o.color); const vac = makeVacuum(col.css); root.add(vac); ch.vac = vac; vac.scale.setScalar(o.scale ? o.scale / 1.05 : 1.4); }
+    if (o.color) { const col = PLAYER_COLORS.find(c => c.id === o.color); const vac = makeVacuum(col.css); root.add(vac); ch.vac = vac; vac.scale.setScalar(o.scale ? o.scale * 0.84 : 1.2); }
     if (o.name) { const lab = nameSprite(o.name, (PLAYER_COLORS.find(c => c.id === o.color) || { css: '#fff' }).css); lab.position.set(0, (o.scale || 1.5) * 1.35 + 0.3, 0); lab.scale.set(2.6, 0.65, 1); root.add(lab); ch.label = lab; }
     this.scene.add(root); this.chars.push(ch); this.play(ch, o.anim || 'idle'); return ch;
   }
@@ -53,7 +53,7 @@ class Showcase3D {
     this.chars.forEach(c => c.mixer.update(dt));
     this.r.render(this.scene, this.cam);
   }
-  dispose() { document.getElementById('three').style.display = 'none'; }
+  dispose() { document.getElementById('three').style.display = 'none'; disposeScene(this.scene); }
 }
 
 // Porträt-Bilder (transparent) für HUD und Dialoge: alle fünf Farben + Bürgermeisterin + Dr. Unrat

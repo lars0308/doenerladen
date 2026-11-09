@@ -5,6 +5,8 @@ const BOSS = {
   slime:  { title: 'GLIBBER – der Schleimkönig',      hp: 8, tex: 'boss_slime',  fw: 170, fh: 70, yoff: 46 },
   digger: { title: 'GNADENLOS – die Bagger-Bestie',   hp: 8, tex: 'boss_digger', fw: 210, fh: 80, yoff: 48 },
   mech:   { title: 'DR. UNRAT im ENTSORGER 9000',     hp: 9, tex: 'boss_mech',   fw: 110, fh: 56, yoff: 28 },
+  dragon: { title: 'EISFUNKE – der Kühlschrank-Drache', hp: 9, tex: 'boss_can',    fw: 150, fh: 76, yoff: 44 },
+  keeper: { title: 'GERD – der Totengräber',          hp: 9, tex: 'boss_can',    fw: 110, fh: 66, yoff: 40 },
 };
 
 class Boss {
@@ -25,7 +27,7 @@ class Boss {
     this.hp = this.maxHp; this.started = false; this.dead = false; this.st = 'sleep'; this.t = 0; this.vuln = false; this.n = 0;
     s.zones = []; s.rings = []; s.warns = []; this.cool = 1500; this.wasV = false;
     spr.setActive(true).setVisible(true); spr.vis.setVisible(true).setAlpha(1).clearTint().setScale(1).setAngle(0);
-    spr.body.enable = true; spr.body.reset(this.home.x, this.home.y); spr.z = this.kind === 'mech' ? 110 : 0;
+    spr.body.enable = true; spr.body.reset(this.home.x, this.home.y); spr.z = (this.kind === 'mech' || this.kind === 'dragon') ? 110 : 0;
     spr.setTexture(spr.texture.key);
     if (this.kind === 'slime') spr.vis.setTexture('boss_slime');
     if (this.shieldS) { this.shieldS.destroy(); this.shieldS = null; }
@@ -34,7 +36,7 @@ class Boss {
   start() {
     this.started = true; this.set('intro', 1300);
     this.s.banner(this.cfg.title.split('–')[0].replace(' im ENTSORGER 9000', '').trim(), 0xffffff, 2200);
-    const t = { can: 'Ich bin die Ordnung im Chaos!', slime: 'Blubb! Das ist MEIN Kanal!', digger: 'Ich wurde zum Gnadenlosen erzogen.', mech: 'Der Müll gehorcht MIR!' }[this.kind];
+    const t = { can: 'Ich bin die Ordnung im Chaos!', slime: 'Blubb! Das ist MEIN Kanal!', digger: 'Ich wurde zum Gnadenlosen erzogen.', mech: 'Der Müll gehorcht MIR!', dragon: 'Wer stört meine Kühlung?! FAUCH!', keeper: 'Hier ruht alles. Auch ihr gleich.' }[this.kind];
     this.s.say(t, this.spr.x, this.spr.y - 200, 2400);
   }
   set(st, ms) { this.st = st; this.t = ms; this.vuln = false; this.spr.vis.clearTint(); }
@@ -80,12 +82,13 @@ class Boss {
     this.t -= dt * 1000;
     const p = this.target();
     // Berührungsschaden
-    if (this.st !== 'intro' && !(this.vuln && this.kind !== 'mech') && this.kind !== 'mech')
+    const contact = this.st !== 'intro' && (this.kind === 'dragon' ? this.st === 'dive' : !(this.vuln && this.kind !== 'mech') && this.kind !== 'mech');
+    if (contact)
       for (const q of s.p) if (q.state === 'normal' && q.z < 14 && !q.fly && ov(q, spr)) s.hurtPlayer(q, spr.x, spr.y);
-    ({ can: this.uCan, slime: this.uSlime, digger: this.uDigger, mech: this.uMech })[this.kind].call(this, dt, time, p);
+    ({ can: this.uCan, slime: this.uSlime, digger: this.uDigger, mech: this.uMech, dragon: this.uDragon, keeper: this.uKeeper })[this.kind].call(this, dt, time, p);
     s.syncVis(spr);
   }
-  idle(time) { this.spr.z = this.kind === 'mech' ? 110 + Math.sin(time / 400) * 8 : 0; this.s.syncVis(this.spr); if (this.shieldS) this.shieldS.setPosition(this.spr.x, this.spr.y - this.spr.z - 100); }
+  idle(time) { this.spr.z = (this.kind === 'mech' || this.kind === 'dragon') ? 110 + Math.sin(time / 400) * 8 : 0; this.s.syncVis(this.spr); if (this.shieldS) this.shieldS.setPosition(this.spr.x, this.spr.y - this.spr.z - 100); }
 
   // 1) Tonnen-Titan: springt auf euch zu (Zielkreis!), Schockwelle (drüber hopsen!), danach betäubt
   uCan(dt, time, p) {
@@ -195,6 +198,63 @@ class Boss {
         Sfx.play('shoot');
       }
       this.cool = (phase2 ? 1700 : 2300) * this.k;
+    }
+  }
+
+  // 5) Drache: schwebt und spuckt Feuerfächer, markiert einen Punkt, stürzt hinab (Schockwelle!) – danach am Boden verwundbar
+  uDragon(dt, time, p) {
+    const s = this.s, spr = this.spr, r = s.arenaR, cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    const phase2 = this.hp <= this.maxHp / 2;
+    if (this.st === 'intro') { if (this.t <= 0) { this.set('fly', 1); this.n = 0; this.cool = 800; } spr.z = 110 + Math.sin(time / 300) * 10; return; }
+    if (this.st === 'fly') {
+      spr.z = 110 + Math.sin(time / 300) * 10;
+      spr.body.reset(cx + Math.sin(time / 1500) * 380, cy - 60 + Math.sin(time / 900) * 110);
+      this.cool -= dt * 1000;
+      if (this.cool <= 0) {
+        const a0 = Math.atan2(p.y - spr.y, p.x - spr.x), sp = 250 / (this.k > 1 ? 1.2 : 1);
+        for (const d of [-0.3, 0, 0.3]) s.eshot(spr.x, spr.y, Math.cos(a0 + d) * sp, Math.sin(a0 + d) * sp, 'fire');
+        Sfx.play('shoot'); this.cool = (phase2 ? 1100 : 1500) * this.k;
+        if (++this.n >= (phase2 ? 5 : 4)) { this.set('mark', 1000 * this.k); this.land = { x: p.x, y: p.y }; }
+      }
+    } else if (this.st === 'mark') {
+      spr.z = 110; s.warns.push({ x: this.land.x, y: this.land.y, r: 85, leap: true });
+      if (this.t <= 0) { this.set('dive', 650); this.diveFrom = { x: spr.x, y: spr.y }; Sfx.play('boss'); }
+    } else if (this.st === 'dive') {
+      const f = 1 - Math.max(0, this.t) / 650;
+      spr.body.reset(this.diveFrom.x + (this.land.x - this.diveFrom.x) * f, this.diveFrom.y + (this.land.y - this.diveFrom.y) * f); spr.z = 110 * (1 - f);
+      s.warns.push({ x: this.land.x, y: this.land.y, r: 85, leap: true });
+      if (this.t <= 0) {
+        spr.z = 0; this.shock(); this.ring(spr.x, spr.y, 460); s.burst(spr.x, spr.y, 'puff', 12, 130, 0xcfe8ff);
+        this.set('stun', 3000 / (this.k > 1 ? 1.2 : 1)); this.vuln = true; spr.vis.setTint(0xffe9a0); s.say('Autsch… mein Kühlmittel!', spr.x, spr.y - 200, 1200);
+        if (phase2) { s.spawnEnemy('flyer', spr.x - 200, spr.y); s.spawnEnemy('flyer', spr.x + 200, spr.y); }
+      }
+    } else if (this.st === 'stun') {
+      spr.z = 0; spr.body.setVelocity(0, 0);
+      if (Math.floor(time / 220) % 2 === 0) s.burst(spr.x, spr.y - 100, 'star', 1, 30);
+      if (this.t <= 0) { this.set('fly', 1); this.n = 0; this.cool = 700; spr.vis.clearTint(); }
+    }
+  }
+
+  // 6) Totengräber: stapft hinter euch her, Stampf-Schlag mit Warnkreis + Schockwelle, ruft Zombies, ruht danach auf dem Spaten (verwundbar)
+  uKeeper(dt, time, p) {
+    const s = this.s, spr = this.spr, b = spr.body, phase2 = this.hp <= this.maxHp / 2;
+    if (this.st === 'intro') { if (this.t <= 0) this.set('chase', 3200 * this.k); return; }
+    if (this.st === 'chase') {
+      const dx = p.x - spr.x, dy = p.y - spr.y, d = Math.hypot(dx, dy) || 1, sp = (phase2 ? 150 : 120) / (this.k > 1 ? 1.3 : 1);
+      b.setVelocity(dx / d * sp, dy / d * sp);
+      if (this.t <= 0) { b.setVelocity(0, 0); this.set('windup', 1000 * this.k); }
+    } else if (this.st === 'windup') {
+      b.setVelocity(0, 0); s.warns.push({ x: spr.x, y: spr.y, r: 120, leap: true });
+      if (this.t <= 0) {
+        this.set('slam', 400); this.shock(); this.ring(spr.x, spr.y, 440); s.burst(spr.x, spr.y, 'puff', 10, 120, 0x8a7a6a);
+        this.n++; if (phase2 || this.n % 2 === 0) { s.spawnEnemy('walker', spr.x - 180, spr.y + 40); s.spawnEnemy('walker', spr.x + 180, spr.y + 40); }
+      }
+    } else if (this.st === 'slam') {
+      if (this.t <= 0) { this.set('rest', 3000 / (this.k > 1 ? 1.2 : 1)); this.vuln = true; spr.vis.setTint(0xffe9a0); s.say('Puh… Rücken!', spr.x, spr.y - 190, 1200); }
+    } else if (this.st === 'rest') {
+      b.setVelocity(0, 0);
+      if (Math.floor(time / 220) % 2 === 0) s.burst(spr.x, spr.y - 90, 'star', 1, 30);
+      if (this.t <= 0) { spr.vis.clearTint(); this.set('chase', 3200 * this.k); }
     }
   }
 }
