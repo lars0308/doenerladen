@@ -623,7 +623,7 @@ class LevelScene extends Phaser.Scene {
     const c = p.in, b = p.body, o = this.p[1 - p.idx];
     if (p.state === 'held') {
       p.setPosition(p.holder.x, p.holder.y); p.vis.setVisible(false);
-      if ((c.jumpEdge && time - p.heldAt > 450) || time - p.heldAt > 6000) this.release(p.holder, false);
+      if ((c.jumpEdge && time - p.heldAt > 450) || time - p.heldAt > (this.kids ? 3000 : 6000)) this.release(p.holder, false);
       return;
     }
     if (p.state === 'falling') { p.fallT -= dt; this.syncVis(p); if (p.fallT <= 0) this.afterFall(p); return; }
@@ -865,7 +865,7 @@ class LevelScene extends Phaser.Scene {
       for (const e of this.enemyList.slice()) if (e.active && ov(s, e)) { this.damageEnemy(e, s.dmg || 1, s.x - s.body.velocity.x * 0.01, s.y - s.body.velocity.y * 0.01); this.splat(s); break; }
       if (!s.active) continue;
       const bo = this.bossObj;
-      if (bo && bo.started && !bo.dead && ov(s, bo.spr)) { bo.hurt(s.dmg || 1); this.splat(s); }
+      if (bo && bo.started && !bo.dead && ov(s, bo.spr)) { bo.hurt((s.dmg || 1) * (this.kids ? 2 : 1)); this.splat(s); }
     }
     for (const p of this.p) if (p.fly) {
       for (const t of this.targets) if (ov(p, t)) this.hitTarget(t);
@@ -1015,7 +1015,7 @@ class LevelScene extends Phaser.Scene {
     const e = this.exitPos;
     const n = this.p.filter(p => p.state === 'normal' && Math.hypot(p.x - e.x, p.y - (e.y + 10)) < 80).length;
     if (n === 2) this.finish();
-    else if (n === 1) this.toast('Wartet auf den Partner – beide in die Röhre!', 300);
+    else if (n === 1) this.toast('Wartet auf den Partner – beide auf den Stern!', 300);
   }
   openExit() {
     this.exitOpen = true; this.exitSpr.setTexture('exit');

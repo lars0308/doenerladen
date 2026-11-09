@@ -34,7 +34,7 @@ class Boss {
     if (this.kind === 'mech') this.shieldS = s.add.image(spr.x, spr.y, 'shield').setDepth(3000).setAlpha(0);
   }
   start() {
-    this.started = true; this.set('intro', 1300);
+    this.started = true; this.lastV = undefined; this.forceV = 0; this.set('intro', 1300);
     this.s.banner(this.cfg.title.split('–')[0].replace(' im ENTSORGER 9000', '').trim(), 0xffffff, 2200);
     const t = { can: 'Ich bin die Ordnung im Chaos!', slime: 'Blubb! Das ist MEIN Kanal!', digger: 'Ich wurde zum Gnadenlosen erzogen.', mech: 'Der Müll gehorcht MIR!', dragon: 'Wer stört meine Kühlung?! FAUCH!', keeper: 'Hier ruht alles. Auch ihr gleich.' }[this.kind];
     this.s.say(t, this.spr.x, this.spr.y - 200, 2400);
@@ -43,7 +43,7 @@ class Boss {
   target() { return this.s.nearest(this.spr.x, this.spr.y); }
   hurt(dmg) {
     if (!this.started || this.dead) return;
-    if (!this.vuln) {
+    if (!this.vuln && this.s.time.now >= (this.forceV || 0)) {
       if (this.s.time.now > (this.noteT || 0)) { this.noteT = this.s.time.now + 700; this.s.say('klonk!', this.spr.x, this.spr.y - 140, 500); Sfx.play('empty'); }
       return;
     }
@@ -81,6 +81,14 @@ class Boss {
     if (!this.started || this.dead) { if (!this.started) { this.idle(time); } return; }
     this.t -= dt * 1000;
     const p = this.target();
+    // Sicherung gegen "unverwundbar"-Frust: war der Boss lange nicht verwundbar, klemmt kurz sein Panzer
+    const now = s.time.now;
+    if (this.vuln) this.lastV = now;
+    else if (this.st !== 'intro') {
+      if (this.lastV === undefined) this.lastV = now;
+      if (now - this.lastV > (s.kids ? 9000 : 15000) && now >= (this.forceV || 0)) { this.forceV = now + 3500; this.lastV = now + 3500; spr.vis.setTint(0xffe9a0); s.say('Huch… mein Panzer klemmt!', spr.x, spr.y - 190, 1300); }
+      if (this.forceV && now >= this.forceV && !this.vuln) { this.forceV = 0; spr.vis.clearTint(); }
+    }
     // Berührungsschaden
     const contact = this.st !== 'intro' && (this.kind === 'dragon' ? this.st === 'dive' : !(this.vuln && this.kind !== 'mech') && this.kind !== 'mech');
     if (contact)
@@ -106,7 +114,7 @@ class Boss {
         this.ring(spr.x, spr.y, 460);
         s.burst(spr.x, spr.y, 'puff', 10, 120, 0xcccccc);
         if (this.hp <= this.maxHp / 2 && this.n % 2 === 0) { s.spawnEnemy('walker', spr.x - 160, spr.y); s.spawnEnemy('walker', spr.x + 160, spr.y); }
-        if (this.n % 2 === 0) { this.set('stun', 3000 / (this.k > 1 ? 1.2 : 1)); this.vuln = true; spr.vis.setTint(0xffe9a0); s.say('Uff… mein Deckel!', spr.x, spr.y - 200, 1200); }
+        if (this.n % 2 === 0) { this.set('stun', 3000 * (this.k > 1 ? 1.35 : 1)); this.vuln = true; spr.vis.setTint(0xffe9a0); s.say('Uff… mein Deckel!', spr.x, spr.y - 200, 1200); }
         else this.set('idle', 800 * this.k);
       }
     } else if (this.st === 'stun') {
@@ -135,7 +143,7 @@ class Boss {
       for (const q of s.p) if (q.state === 'normal') this.zone(q.x, q.y, 80, 1000 * this.k, 3500, 'goo');
       const r = s.arenaR; this.zone(Phaser.Math.Between(r.x + 150, r.x + r.w - 150), Phaser.Math.Between(r.y + 150, r.y + r.h - 150), 80, 1000 * this.k, 3500, 'goo');
       if (this.hp <= this.maxHp / 2) { s.spawnEnemy('walker', spr.x - 150, spr.y + 40); s.spawnEnemy('walker', spr.x + 150, spr.y + 40); }
-      this.set('open', 3400 / (this.k > 1 ? 1.2 : 1)); this.vuln = true; spr.vis.setTexture('boss_slime_open'); s.say('Aaaah…', spr.x, spr.y - 200, 1000);
+      this.set('open', 3400 * (this.k > 1 ? 1.35 : 1)); this.vuln = true; spr.vis.setTexture('boss_slime_open'); s.say('Aaaah…', spr.x, spr.y - 200, 1000);
     } else if (this.st === 'open' && this.t <= 0) { this.vuln = false; spr.vis.setTexture('boss_slime'); this.set('spit', 800 * this.k); this.n = 0; }
   }
 
@@ -161,7 +169,7 @@ class Boss {
         s.burst(spr.x + this.dir.x * 120, spr.y + this.dir.y * 60, 'puff', 12, 120, 0xbbbbbb);
         const r = s.arenaR, nb = this.hp <= this.maxHp / 2 ? 5 : 3;
         for (let i = 0; i < nb; i++) this.zone(Phaser.Math.Between(r.x + 120, r.x + r.w - 120), Phaser.Math.Between(r.y + 120, r.y + r.h - 120), 66, 1300 * this.k, 300, 'bomb');
-        this.set('stun', 3300 / (this.k > 1 ? 1.2 : 1)); this.vuln = true; spr.vis.setTint(0xffe9a0); s.say('Mein Kopf!', spr.x, spr.y - 170, 1200);
+        this.set('stun', 3300 * (this.k > 1 ? 1.35 : 1)); this.vuln = true; spr.vis.setTint(0xffe9a0); s.say('Mein Kopf!', spr.x, spr.y - 170, 1200);
       }
     } else if (this.st === 'stun') {
       b.setVelocity(0, 0); spr.vis.setAngle(Math.sin(time / 60) * 1.2);
@@ -211,7 +219,7 @@ class Boss {
       spr.body.reset(cx + Math.sin(time / 1500) * 380, cy - 60 + Math.sin(time / 900) * 110);
       this.cool -= dt * 1000;
       if (this.cool <= 0) {
-        const a0 = Math.atan2(p.y - spr.y, p.x - spr.x), sp = 250 / (this.k > 1 ? 1.2 : 1);
+        const a0 = Math.atan2(p.y - spr.y, p.x - spr.x), sp = 250 * (this.k > 1 ? 1.35 : 1);
         for (const d of [-0.3, 0, 0.3]) s.eshot(spr.x, spr.y, Math.cos(a0 + d) * sp, Math.sin(a0 + d) * sp, 'fire');
         Sfx.play('shoot'); this.cool = (phase2 ? 1100 : 1500) * this.k;
         if (++this.n >= (phase2 ? 5 : 4)) { this.set('mark', 1000 * this.k); this.land = { x: p.x, y: p.y }; }
@@ -225,7 +233,7 @@ class Boss {
       s.warns.push({ x: this.land.x, y: this.land.y, r: 85, leap: true });
       if (this.t <= 0) {
         spr.z = 0; this.shock(); this.ring(spr.x, spr.y, 460); s.burst(spr.x, spr.y, 'puff', 12, 130, 0xcfe8ff);
-        this.set('stun', 3000 / (this.k > 1 ? 1.2 : 1)); this.vuln = true; spr.vis.setTint(0xffe9a0); s.say('Autsch… mein Kühlmittel!', spr.x, spr.y - 200, 1200);
+        this.set('stun', 3000 * (this.k > 1 ? 1.35 : 1)); this.vuln = true; spr.vis.setTint(0xffe9a0); s.say('Autsch… mein Kühlmittel!', spr.x, spr.y - 200, 1200);
         if (phase2) { s.spawnEnemy('flyer', spr.x - 200, spr.y); s.spawnEnemy('flyer', spr.x + 200, spr.y); }
       }
     } else if (this.st === 'stun') {
@@ -250,7 +258,7 @@ class Boss {
         this.n++; if (phase2 || this.n % 2 === 0) { s.spawnEnemy('walker', spr.x - 180, spr.y + 40); s.spawnEnemy('walker', spr.x + 180, spr.y + 40); }
       }
     } else if (this.st === 'slam') {
-      if (this.t <= 0) { this.set('rest', 3000 / (this.k > 1 ? 1.2 : 1)); this.vuln = true; spr.vis.setTint(0xffe9a0); s.say('Puh… Rücken!', spr.x, spr.y - 190, 1200); }
+      if (this.t <= 0) { this.set('rest', 3000 * (this.k > 1 ? 1.35 : 1)); this.vuln = true; spr.vis.setTint(0xffe9a0); s.say('Puh… Rücken!', spr.x, spr.y - 190, 1200); }
     } else if (this.st === 'rest') {
       b.setVelocity(0, 0);
       if (Math.floor(time / 220) % 2 === 0) s.burst(spr.x, spr.y - 90, 'star', 1, 30);

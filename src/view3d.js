@@ -332,10 +332,11 @@ class View3D {
       sc.add(g); m.m3 = g;
     }
     if (s.exitSpr) {
-      const g = new THREE.Group(); this.place(this.cyl(0.85, 0.95, 1.5, 0x4a8f5a), 0, 0.75, 0, g); this.place(this.cyl(0.95, 0.95, 0.2, 0xffd23f), 0, 1.55, 0, g);
-      this.exitDisc = this.place(this.cyl(0.62, 0.62, 0.06, 0xff4a4a, 24, { emissive: 0xaa2020 }), 0, 1.66, 0, g);
-      const st = a3clone('p:star', 3); st.position.y = 2.3; g.add(st); this.exitStar = st;
-      g.position.set(s.exitPos.x / T, 0, (s.exitPos.y + 20) / T); sc.add(g); this.exit = g;
+      const g = new THREE.Group(); this.place(this.cyl(1.25, 1.35, 0.1, 0xffd23f), 0, 0.05, 0, g); this.place(this.cyl(1.0, 1.0, 0.14, 0x2a2a4a), 0, 0.07, 0, g);
+      this.exitDisc = this.place(this.cyl(0.9, 0.9, 0.16, 0xff4a4a, 24, { emissive: 0xaa2020 }), 0, 0.08, 0, g);
+      const sg = new THREE.Group(); const st = a3clone('p:star', 2.6); st.rotation.x = -Math.PI / 2; sg.add(st); sg.position.y = 0.3; g.add(sg); this.exitStar = sg;
+      for (let i = 0; i < 8; i++) { const a_ = i / 8 * Math.PI * 2, lamp = this.sph(0.09, 0xffffff, { emissive: 0xffee88 }); lamp.position.set(Math.cos(a_) * 1.18, 0.14, Math.sin(a_) * 1.18); g.add(lamp); }
+      g.position.set(s.exitPos.x / T, 0, (s.exitPos.y + 10) / T); sc.add(g); this.exit = g;
     }
     if (s.lockGate) {
       const g = s.lockGate, grp = new THREE.Group(), h = g.displayHeight / T;
@@ -566,7 +567,7 @@ class View3D {
     for (const l of s.lasers) { const on = l.on; l.m3.visible = on || l.warn || !!l.id; l.m3.material = on ? this.M(0xff3a3a, { emissive: 0xff2020 }) : this.M(0xff8080, { transparent: true, opacity: 0.18 }); }
     for (const cv of s.convs) cv.tx.offset.x = (cv.v.tilePositionX / T1);
     if (this.lock) this.lock.visible = s.lockGate.alpha > 0.2;
-    if (this.exit) { this.exitDisc.material = this.M(s.exitOpen ? 0x66ff88 : 0xff4a4a, { emissive: s.exitOpen ? 0x22aa44 : 0xaa2020 }); this.exitDisc.rotation.y = time / 300; this.exitStar.rotation.y = time / 400; this.exitStar.visible = s.exitOpen; }
+    if (this.exit) { this.exitDisc.material = this.M(s.exitOpen ? 0x66ff88 : 0xff4a4a, { emissive: s.exitOpen ? 0x22aa44 : 0xaa2020 }); this.exitDisc.rotation.y = time / 300; this.exitStar.rotation.y = time / 500; this.exitStar.position.y = 0.3 + Math.sin(time / 300) * 0.05; this.exitStar.visible = s.exitOpen; }
     if (this.liq) this.liq.material.emissiveIntensity = 0.45 + Math.sin(time / 500) * 0.12;
   }
   pooled(pool, make, list, apply) {
