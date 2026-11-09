@@ -711,9 +711,13 @@ class LevelScene extends Phaser.Scene {
     }
     const bo = this.bossObj; if (bo && bo.started && !bo.dead && ov(p, bo.spr)) bo.stomp(p);
   }
+  charge(p, n = 1) {   // Super-Schuss lädt sich durch Einsaugen auf
+    const was = (p.charge || 0) >= p.maxAmmo; p.charge = Math.min(p.maxAmmo, (p.charge || 0) + n);
+    if (!was && p.charge >= p.maxAmmo) { Sfx.play('burp'); this.toast('SUPER-SCHUSS bereit!  (X)', 1500); this.burst(p.x, p.y - 40, 'star', 8, 80); }
+  }
   fireTrash(p) {
-    const full = p.ammo >= p.maxAmmo, n = full ? 5 : 1;
-    p.ammo = full ? Math.max(0, p.ammo - Math.ceil(p.maxAmmo * 0.5)) : p.ammo - 1; Sfx.play(full ? 'super' : 'shoot');
+    const full = (p.charge || 0) >= p.maxAmmo, n = full ? 5 : 1;
+    if (full) p.charge = 0; p.ammo = full ? Math.max(0, p.ammo - 3) : p.ammo - 1; Sfx.play(full ? 'super' : 'shoot');
     const base = Math.atan2(p.aim.y, p.aim.x);
     for (let i = 0; i < n; i++) {
       const ang = base + (n > 1 ? (i - (n - 1) / 2) * 0.2 : 0), dx = Math.cos(ang), dy = Math.sin(ang), x = p.x + dx * 30, y = p.y + dy * 20;
@@ -730,15 +734,14 @@ class LevelScene extends Phaser.Scene {
     const range = 185, cos = Math.cos(Phaser.Math.DegToRad(50));
     if (time > p.suckSfx) { p.suckSfx = time + 120; Sfx.play('suck'); }
     const inCone = (x, y, r) => { const dx = x - mx, dy = y - my, d = Math.hypot(dx, dy); if (d < 55) return true; if (d > r) return false; return (dx * a.x + dy * a.y) / d > cos; };
-    const full = p.ammo >= p.maxAmmo;
+    const full = false;   // der Kanister hat unendlich Platz
     const pull = (t, spd, y0 = 0) => { const d = Math.hypot(mx - t.x, my - t.y) || 1; t.suckF = Math.max(0.05, Math.min(1, 1 - d / range)); t.suckT = time; const sp = spd * dt * (1 + 1.4 * t.suckF); t.x += (mx - t.x) / d * Math.min(sp, d); t.y += (my - t.y) / d * Math.min(sp, d); return Math.hypot(mx - t.x, my - t.y); };
     for (const t of this.pickups.slice()) {
       if (!t.active || !inCone(t.x, t.y, range)) continue;
       if (full) { if (time > p.fullMsg) { p.fullMsg = time + 1600; this.toast('Tank voll!  Schieß den Müll weg (X) oder in eine Tonne', 1400); Sfx.play('empty'); } continue; }
       const d = pull(t, 520); t.setDepth(t.y);
       if (d < 22) {
-        p.ammo++; if (!t.gen) this.trashGot++; (p.gens || (p.gens = [])).push(t.gen || 0); if (p.gens.length > 40) p.gens.shift(); Sfx.play('pickup'); this.logTaken('p', t); t.destroy(); this.pickups = this.pickups.filter(q => q !== t);
-        if (p.ammo >= p.maxAmmo) { Sfx.play('burp'); this.toast('Tank VOLL!  Jetzt gibt es Super-Schüsse (X)', 1500); this.burst(p.x, p.y - 40, 'star', 8, 80); }
+        p.ammo++; if (!t.gen) this.trashGot++; this.charge(p); (p.gens || (p.gens = [])).push(t.gen || 0); if (p.gens.length > 40) p.gens.shift(); Sfx.play('pickup'); this.logTaken('p', t); t.destroy(); this.pickups = this.pickups.filter(q => q !== t);
       }
     }
     for (const c of this.coinsA.slice()) {   // Münzen werden eingesaugt und verschwinden in der Düse
@@ -760,9 +763,8 @@ class LevelScene extends Phaser.Scene {
       const c = e.cfg, small = c.walker || c.hp <= 1 || c.kamikaze || c.jumper || e.type === 'walker' || e.type === 'flyer';
       e.suckT = time;
       if (small) {
-        if (p.ammo >= p.maxAmmo) { e.suckF = 0.2; continue; }
         e.body.setVelocity(0, 0); if (pull(e, 360) < 30) {
-          p.ammo = Math.min(p.maxAmmo, p.ammo + 2); this.trashGot += 1; this.coinCount += 1; Sfx.play('gulp'); this.burst(mx, my - 20, 'star', 8, 80);
+          p.ammo += 2; this.charge(p, 2); this.trashGot += 1; this.coinCount += 1; Sfx.play('gulp'); this.burst(mx, my - 20, 'star', 8, 80);
           this.enemyList = this.enemyList.filter(q => q !== e); this.killActor(e); this.toast('Eingesaugt! Tank +2', 700);
         }
       } else {   // große Gegner: werden festgehalten und nehmen Schaden
@@ -897,7 +899,7 @@ class LevelScene extends Phaser.Scene {
     for (const pw of this.powers.slice()) for (const p of this.p) if (pw.active && p.state === 'normal' && Math.hypot(p.x - pw.x, p.y - pw.y) < 38) { this.givePower(p, pw.kind); pw.destroy(); this.powers = this.powers.filter(q => q !== pw); break; }
     for (const p of this.p) if (p.state === 'normal' && p.pw && p.pw.kind === 'magnet' && time < p.pw.until) {
       const pull = (list, ok) => { for (const t of list.slice()) { if (!t.active) continue; const d = Math.hypot(p.x - t.x, p.y - t.y); if (d > 260 || d < 2 || !ok(t)) continue; const sp = 420 * 0.016; t.x += (p.x - t.x) / d * Math.min(sp, d); t.y += (p.y - t.y) / d * Math.min(sp, d); if (d < 32) { if (list === this.pickups) { p.ammo++; this.trashGot++; Sfx.play('pickup'); this.logTaken('p', t); t.destroy(); this.pickups = this.pickups.filter(q => q !== t); } } } };
-      if (p.ammo < p.maxAmmo) pull(this.pickups, () => true); pull(this.coinsA, () => true);
+      pull(this.pickups, () => true); pull(this.coinsA, () => true);
     }
     for (const sp of this.springsA) for (const p of this.p) {
       if (p.state === 'normal' && !p.hop && !p.fly && time > sp.cd && Math.hypot(p.x - sp.x, p.y - sp.y) < 30) {
