@@ -90,8 +90,8 @@ function playerTexture(colorId) {
   const key = 'ptex_' + colorId; if (A3.cache[key]) return A3.cache[key];
   const c = PLAYER_COLORS.find(x => x.id === colorId) || PLAYER_COLORS[2];
   let t;
-  if (c.hue === null) { t = new THREE.CanvasTexture(A3.imgs.platformer); t.flipY = false; t.encoding = THREE.sRGBEncoding; }
-  else t = recolorTexture(A3.imgs.platformer, [{ test: (h, s, l) => h > 0.68 && h < 0.9 && s > 0.2 && l > 0.15, to: (h, s, l) => [c.hue, c.sat, c.id === 'white' ? Math.min(0.95, l + 0.45) : Math.min(0.85, l * 0.5 + c.lit * 0.55)] }]);
+  if (c.hue === null) t = recolorTexture(A3.imgs.platformer, [{ test: (h, s, l) => s < 0.6 && l > 0.78, to: (h, s, l) => [0.75, 0.6, 0.62 + (l - 0.78) * 0.7] }]);
+  else t = recolorTexture(A3.imgs.platformer, [{ test: (h, s, l) => s < 0.6 && l > 0.78 && c.id !== 'white', to: (h, s, l) => [c.hue, Math.max(0.55, c.sat), 0.58 + (l - 0.78) * 0.7] }, { test: (h, s, l) => h > 0.68 && h < 0.9 && s > 0.2 && l > 0.15, to: (h, s, l) => [c.hue, c.sat, c.id === 'white' ? Math.min(0.95, l + 0.45) : Math.min(0.85, l * 0.5 + c.lit * 0.55)] }]);
   return (A3.cache[key] = t);
 }
 // Ein Spieler-Modell (animiert) in der gewählten Farbe

@@ -20,7 +20,7 @@ const TH3 = {
   junk: {
     floor: 'p:block-grass', wall: 'p:block-grass', fr: rules([0.12, 0.7, 0.62], [0.07, 0.55, 0.4]), wr: rules([0.08, 0.5, 0.48], [0.05, 0.5, 0.28]),
     sky: [0xe9984a, 0xffe6a8], fog: 0xf6cd8a, liquid: 0x3a2a1a, cliff: 0x8a5a2a,
-    ground: ['p:rocks', 'p:stones', 'f:bag-flat', 'f:can-open', 'f:soda-can-crushed', 'f:pizza-box'], wallTop: ['i:shipping-container-a', 'i:shipping-container-b', 'i:shipping-container-c', 'p:barrel', 'i:detail-tank'], island: 'i:chimney-medium', big: ['i:building-j', 'i:water-tower'],
+    ground: ['p:rocks', 'p:stones', 'f:bag-flat', 'f:can-open', 'f:soda-can-crushed', 'f:can-small'], wallTop: ['i:shipping-container-a', 'i:shipping-container-b', 'i:shipping-container-c', 'p:barrel', 'i:detail-tank'], island: 'i:chimney-medium', big: ['i:building-j', 'i:water-tower'],
   },
   factory: {
     floor: 'p:block-grass', wall: 'p:block-grass', fr: rules([0.6, 0.3, 0.62], [0.62, 0.35, 0.34]), wr: rules([0.13, 0.95, 0.55], [0.62, 0.4, 0.24]),
@@ -408,6 +408,7 @@ class View3D {
     const st = white ? 1 : red ? 2 : 0; if (obj.userData.fl === st) return; obj.userData.fl = st;
     obj.traverse(o => { if (o.isMesh) { if (!o.userData.mat) { cloneMats(o); o.userData.mat = true; } eachMat(o, m => { if (m.emissive) m.emissive.setHex(st === 1 ? 0xffffff : st === 2 ? 0x882222 : 0x000000); }); } });
   }
+  tm(name, sc) { return a3clone(name, sc * ({ 'f:pizza-box': 0.45, 'f:bag-flat': 0.75, 'f:plate-broken': 0.8 }[name] || 1)); }
   foodFor(key, x, y) { const L = ['f:can-open', 'f:banana', 'f:pizza-box', 'f:fish-bones', 'f:soda-can-crushed', 'f:apple', 'f:bag-flat', 'f:plate-broken']; const n = (+key.slice(-1) + Math.floor(x / 48 + y / 48)) % L.length; return L[(n + L.length) % L.length]; }
 
   // ───────────────────────── Update ─────────────────────────
@@ -500,7 +501,7 @@ class View3D {
       let m = this.map.get(e);
       if (!m) {
         let o; const kind = e.kind || 'goo';
-        if (grp === s.shotG) { o = a3clone(this.foodFor(e.vis.texture.key, e.x, e.y), e.big ? 2.4 : 1.4); if (e.big) { o.traverse(q => { if (q.isMesh) { cloneMats(q); eachMat(q, mm => { if (mm.emissive) mm.emissive.setHex(0x886600); }); } }); } }
+        if (grp === s.shotG) { o = this.tm(this.foodFor(e.vis.texture.key, e.x, e.y), e.big ? 2.4 : 1.4); if (e.big) { o.traverse(q => { if (q.isMesh) { cloneMats(q); eachMat(q, mm => { if (mm.emissive) mm.emissive.setHex(0x886600); }); } }); } }
         else if (kind === 'fire') o = this.sph(0.26, 0xff8a2e, { emissive: 0xff5a10 });
         else if (kind === 'arrow') { o = new THREE.Group(); const sh = this.cyl(0.03, 0.03, 0.7, 0xcaa46a); sh.rotation.x = Math.PI / 2; o.add(sh); this.place(this.cone(0.07, 0.18, 0xdde3ea, 8), 0, 0, 0.42, o).rotation.x = Math.PI / 2; }
         else if (kind === 'bomb') o = a3clone('p:bomb', 1.4); else if (kind === 'red') o = this.sph(0.2, 0xff6a6a, { emissive: 0xaa2020 }); else o = this.sph(0.18, 0x8cf06a, { emissive: 0x2a8a20 });
@@ -530,7 +531,7 @@ class View3D {
     sync(s.bins, o => { const g = new THREE.Group(); this.place(this.cyl(0.42, 0.36, 0.9, 0x2fa84f), 0, 0.45, 0, g); this.place(this.cyl(0.46, 0.46, 0.1, 0x1d7a38), 0, 0.92, 0, g); this.place(this.cyl(0.3, 0.3, 0.06, 0x16301c), 0, 0.97, 0, g); const rc = this.mesh(new THREE.TorusGeometry(0.2, 0.04, 8, 20), 0xffffff); rc.position.set(0, 0.5, 0.4); g.add(rc); const ar = this.mesh(new THREE.ConeGeometry(0.1, 0.2, 3), 0xffffff); ar.position.set(0, 0.5, 0.42); ar.rotation.z = Math.PI; g.add(ar); g.scale.setScalar(1.35); return g; }, () => 0);
     for (const bn of s.bins) { const m = this.map.get(bn); if (m) { const k = Math.max(0, 1 - (time - bn.t0) / 300); m.o.scale.setScalar(1.35 * (1 + 0.18 * Math.sin(k * 6.28) * k)); } }
     sync(s.coinsA, o => (o.val > 1 ? a3clone('p:jewel', 3.2) : a3clone('p:coin-gold', 2.2)), (o, t) => 0.35 + Math.sin(t / 300 + o.x) * 0.06);
-    sync(s.pickups, o => (o.model ? a3clone(o.model, o.model[0] === 'g' ? 1.3 : 1.5) : a3clone(this.foodFor(o.texture.key, o.x, o.y), 1.5)), (o, t) => 0.05 + Math.abs(Math.sin(t / 400 + o.x)) * 0.12);
+    sync(s.pickups, o => (o.model ? a3clone(o.model, o.model[0] === 'g' ? 1.3 : 1.5) : this.tm(this.foodFor(o.texture.key, o.x, o.y), 1.5)), (o, t) => 0.05 + Math.abs(Math.sin(t / 400 + o.x)) * 0.12);
     for (const c of s.coinsA) { const m = this.map.get(c); if (m) m.o.rotation.y = time / 300 + c.x; }
     for (const t of s.pickups) { const m = this.map.get(t); if (m) m.o.rotation.y = time / 500; }
     for (const [k, m] of this.map) if (!k.type && !seen.has(k)) { sc.remove(m.o); this.map.delete(k); }

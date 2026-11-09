@@ -39,10 +39,10 @@ class HudScene extends Phaser.Scene {
     L.p.forEach((p, i) => {
       const u = this.pl[i];
       u.hearts.forEach((hh, k) => hh.setTexture(L.kids || k < p.hp ? 'heart' : 'heart_e').setAlpha(p.state === 'down' ? 0.4 : 1));
-      const f = Math.min(1, (p.charge || 0) / p.maxAmmo), full = f >= 0.999, g = u.bar; g.clear();
+      const f = Math.min(1, p.ammo / p.maxAmmo), full = p.ammo >= p.maxAmmo, g = u.bar; g.clear();
       g.fillStyle(0x16101f, 1); g.fillRoundedRect(u.x + 138, u.y + 80, 130, 20, 8);
       g.fillStyle(full ? 0x7dff8a : 0xb8a56a, 1); g.fillRoundedRect(u.x + 140, u.y + 82, Math.max(6, 126 * f), 16, 6);
-      u.txt.setText(full ? 'SUPER! ' + p.ammo : '' + p.ammo).setColor(full ? '#7dff8a' : '#ffffff');
+      u.txt.setText((p.charge || 0) >= p.maxAmmo ? 'SUPER! ' + p.ammo + '/' + p.maxAmmo : p.ammo + '/' + p.maxAmmo + (full ? ' VOLL' : '')).setColor(full ? '#7dff8a' : '#ffffff');
       u.ko.setText(p.state === 'down' ? 'K.O.' : '');
       const left = p.pw ? Math.max(0, Math.ceil((p.pw.until - L.time.now) / 1000)) : 0;
       u.pwT.setText(left ? { ball: '⚽ Hüpf-Ball', wings: '🪽 Flügel', magnet: '🧲 Magnet' }[p.pw.kind] + '  ' + left + ' s' : '');

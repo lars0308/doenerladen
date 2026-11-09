@@ -246,7 +246,7 @@ const LEVELS = [
   },
   // ───────────────────────── Bonus: Müllberg-Prüfung ─────────────────────────
   {
-    name: 'Der große Müllberg', theme: 'junk', bonus: true, size: [84, 48], start: [5, 40], music: 'junk', quota: 150, litter: 330,
+    name: 'Der große Müllberg', theme: 'junk', bonus: true, size: [84, 48], start: [5, 40], music: 'junk', quota: 100, litter: 170,
     build(s) {
       s.field(2, 2, 80, 44, { enemies: [['walker', 6], ['armor', 4], ['archer', 5], ['charger', 4], ['flyer', 5], ['kamikaze', 6], ['jumper', 4], ['sawer', 5], ['drake', 2]], spawners: 5, coins: 24, density: 0.7, avoid: [[68, 18, 14, 12], [12, 20, 22, 14]] });
       s.sign(6, 38, 'Müllberg-Prüfung! Sammelt 150 Müll,\ndann öffnet sich das Portal in der Mitte rechts.\nEs wird nicht beim ersten Mal klappen …');
