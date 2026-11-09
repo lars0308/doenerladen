@@ -668,7 +668,7 @@ class LevelScene extends Phaser.Scene {
       b.setVelocity(approach(b.velocity.x, tx, a), approach(b.velocity.y, ty, a));
       if (c.jumpEdge && time > p.hopCd) {
         const hv = ml >= 0.3 ? { x: mx / ml, y: my / ml } : p.aim;
-        p.hop = { t: 0, dur: 0.58, h: 84 }; Sfx.play('jump'); this.burst(p.x, p.y, 'puff', 3, 30);
+        p.hop = this.kids ? { t: 0, dur: HOP_T, h: 50, vx: hv.x * HOP_V, vy: hv.y * HOP_V, fixed: true } : { t: 0, dur: 0.58, h: 84 }; Sfx.play('jump'); this.burst(p.x, p.y, 'puff', 3, 30);
       }
     }
     const air = p.fly || p.hop;
