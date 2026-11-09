@@ -33,7 +33,7 @@ class LevelScene extends Phaser.Scene {
 
     this.physics.world.gravity.y = 0;
     this.physics.world.setBounds(0, 0, this.gw * T, this.gh * T);
-    this.cameras.main.setBounds(0, 0, this.gw * T, this.gh * T).setBackgroundColor(shade(THEMES[this.theme].dark, 0.55));
+    this.cameras.main.setBounds(0, 0, this.gw * T, this.gh * T).setVisible(false);
 
     this.wallG = this.physics.add.staticGroup(); this.gateG = this.physics.add.staticGroup();
     this.crateG = this.physics.add.staticGroup(); this.targetG = this.physics.add.staticGroup();
@@ -48,17 +48,14 @@ class LevelScene extends Phaser.Scene {
     this.finalize();
     this.makePlayers();
     this.setupColliders();
-    this.makeHud();
-
     this.nav = new MenuNav(this);
-    const cam = this.cameras.main;
-    this.camT = this.add.zone(this.p[0].x, this.p[0].y, 4, 4);
-    cam.startFollow(this.camT, true, 0.12, 0.12);
-    cam.centerOn(this.p[0].x, this.p[0].y);
-    cam.fadeIn(400);
+    this.v3 = new View3D(this);
+    this.scene.launch('Hud', { level: this });
+    this.hudS = this.scene.get('Hud');
+    this.hudCall('fade', 'in', 500); 
     Sfx.music(def.music);
-    this.banner(def.name, 0xffffff, 1800);
-    this.events.on('shutdown', () => { Sfx.music(null); });
+    this.time.delayedCall(250, () => this.banner(def.name, 0xffffff, 1800));
+    this.events.on('shutdown', () => { Sfx.music(null); this.scene.stop('Hud'); this.v3.dispose(); });
   }
 
   // ── Gelände ──
@@ -73,16 +70,8 @@ class LevelScene extends Phaser.Scene {
     const wallCells = [], pitCells = [];
     for (let y = 0; y < this.gh; y++) for (let x = 0; x < this.gw; x++) {
       const v = g[y][x];
-      if (v === 1) this.add.image(x * T, y * T, ((x + y) % 2 ? 'floorb_' : 'floor_') + th).setOrigin(0).setDepth(0);
-      else if (v === 2) {
-        this.pitSet.add(y * this.gw + x); pitCells.push([x, y]);
-        this.add.image(x * T, y * T, (this.at(x, y - 1) === 2 ? 'pit_' : 'pitc_') + th).setOrigin(0).setDepth(0);
-      } else if (nearFloor(x, y, 2)) {
-        const front = this.at(x, y + 1) !== 0;
-        this.add.image(x * T, y * T, front ? 'fill_' + th : 'wallt_' + th).setOrigin(0).setDepth(0.2);
-        if (front) { this.deco.lineStyle(5, OUT, 1); this.deco.beginPath(); this.deco.moveTo(x * T, (y + 1) * T); this.deco.lineTo((x + 1) * T, (y + 1) * T); this.deco.strokePath(); }
-        if (nearFloor(x, y, 1)) wallCells.push([x, y]);
-      }
+      if (v === 2) { this.pitSet.add(y * this.gw + x); pitCells.push([x, y]); }
+      else if (v === 0 && nearFloor(x, y, 1)) wallCells.push([x, y]);
     }
     const runs = (cells, add) => {
       const rows = {}; cells.forEach(([x, y]) => (rows[y] = rows[y] || []).push(x));
@@ -90,11 +79,6 @@ class LevelScene extends Phaser.Scene {
     };
     runs(wallCells, (x, y, w) => this.addSolid(this.wallG, x * T, y * T, w * T, T));
     runs(pitCells, (x, y, w) => this.addSolid(this.pitBlockG, x * T, y * T, w * T, T));
-    this.deco.lineStyle(4, OUT, 1);
-    for (const [x, y] of pitCells) {
-      if (this.at(x - 1, y) === 1) { this.deco.beginPath(); this.deco.moveTo(x * T, y * T); this.deco.lineTo(x * T, (y + 1) * T); this.deco.strokePath(); }
-      if (this.at(x + 1, y) === 1) { this.deco.beginPath(); this.deco.moveTo((x + 1) * T, y * T); this.deco.lineTo((x + 1) * T, (y + 1) * T); this.deco.strokePath(); }
-    }
   }
   addSolid(group, x, y, w, h) {
     const r = this.add.rectangle(x + w / 2, y + h / 2, w, h, 0x000000, 0);
@@ -182,7 +166,7 @@ class LevelScene extends Phaser.Scene {
   sign(x, y, text) {
     const s = this.add.image(this.cx(x), (y + 1) * T - 4, 'sign').setOrigin(0.5, 1).setDepth((y + 1) * T);
     const t = this.add.text(this.cx(x), (y + 1) * T - 70, text, { fontFamily: FONT, fontSize: '20px', color: '#16101f', backgroundColor: '#fff6d2', padding: { x: 12, y: 8 }, align: 'center' }).setOrigin(0.5, 1).setDepth(2950).setVisible(false);
-    this.signs.push({ s, t });
+    this.signs.push({ s, t, text });
   }
   boss(kind) {
     const A = this.A, AY = this.AY, en = this.def.entry; // entry = [y, h] des Eingangs-Tores
@@ -239,48 +223,13 @@ class LevelScene extends Phaser.Scene {
     this.killActor(s);
   }
 
-  // ───────────────────────── HUD ─────────────────────────
-  makeHud() {
-    const fixed = o => o.setScrollFactor(0).setDepth(5000);
-    this.heartI = [];
-    for (let i = 0; i < this.maxHearts; i++) this.heartI.push(fixed(this.add.image(34 + i * 36, 34, 'heart')));
-    fixed(this.add.image(W - 150, 34, 'coin').setScale(1.3));
-    this.coinT = fixed(this.add.text(W - 128, 34, '0', { fontFamily: FONT, fontSize: '30px', color: '#fff', stroke: '#16101f', strokeThickness: 6 }).setOrigin(0, 0.5));
-    this.ammoT = [];
-    for (let i = 0; i < 2; i++) {
-      const x = i === 0 ? 34 : W - 190, y = H - 50;
-      fixed(this.add.image(x + 18, y, i === 0 ? 'knox' : 'zippy').setScale(0.6));
-      fixed(this.add.image(x + 70, y + 2, 'trash0').setScale(0.9));
-      this.ammoT.push(fixed(this.add.text(x + 92, y, '×3', { fontFamily: FONT, fontSize: '28px', color: '#fff', stroke: '#16101f', strokeThickness: 6 }).setOrigin(0, 0.5)));
-    }
-    this.bossG = fixed(this.add.graphics());
-    this.bossName = fixed(this.add.text(W / 2, 62, '', { fontFamily: FONT, fontSize: '22px', color: '#fff', stroke: '#16101f', strokeThickness: 6 }).setOrigin(0.5, 0)).setVisible(false);
-    this.msg = fixed(this.add.text(W / 2, 140, '', { fontFamily: FONT, fontSize: '34px', color: '#fff', stroke: '#16101f', strokeThickness: 8, align: 'center' }).setOrigin(0.5).setAlpha(0));
-    this.pauseG = fixed(this.add.graphics()).setVisible(false).setDepth(6000);
-    this.pauseT = fixed(this.add.text(W / 2, H / 2, '', { fontFamily: FONT, fontSize: '36px', color: '#fff', stroke: '#16101f', strokeThickness: 8, align: 'center' }).setOrigin(0.5)).setVisible(false).setDepth(6001);
-  }
-  banner(text, color, ms = 1600) {
-    const t = this.add.text(W / 2, H / 2 - 40, text, { fontFamily: FONT, fontSize: '80px', fontStyle: 'bold', color: '#fff', stroke: '#16101f', strokeThickness: 14 }).setOrigin(0.5).setScrollFactor(0).setDepth(6000).setScale(0.2).setAlpha(0);
-    this.tweens.add({ targets: t, scale: 1, alpha: 1, duration: 300, ease: 'Back.out' });
-    this.tweens.add({ targets: t, alpha: 0, y: t.y - 60, delay: ms, duration: 400, onComplete: () => t.destroy() });
-  }
-  toast(text, ms = 1800) {
-    this.msg.setText(text).setAlpha(1); this.tweens.killTweensOf(this.msg);
-    this.tweens.add({ targets: this.msg, alpha: 0, delay: ms, duration: 400 });
-  }
-  burst(x, y, tex, n, speed, tint) {
-    for (let i = 0; i < n; i++) {
-      const s = this.add.image(x, y, tex).setDepth(2950).setScale(0.6 + Math.random() * 0.6);
-      if (tint) s.setTint(tint);
-      const a = Math.random() * Math.PI * 2, d = speed * (0.4 + Math.random() * 0.8);
-      this.tweens.add({ targets: s, x: x + Math.cos(a) * d, y: y + Math.sin(a) * d * 0.7, alpha: 0, scale: 0.1, angle: Phaser.Math.Between(-180, 180), duration: 380 + Math.random() * 250, onComplete: () => s.destroy() });
-    }
-  }
-  say(text, x, y, ms = 1800) {
-    const t = this.add.text(x, y, text, { fontFamily: FONT, fontSize: '22px', color: '#16101f', backgroundColor: '#ffffff', padding: { x: 10, y: 6 } }).setOrigin(0.5, 1).setDepth(2960);
-    this.tweens.add({ targets: t, y: y - 20, alpha: 0, delay: ms, duration: 400, onComplete: () => t.destroy() });
-  }
-  shake(d = 200, i = 0.01) { this.cameras.main.shake(d, i); }
+  // ───────────────────────── HUD / Effekte (delegiert) ─────────────────────────
+  hudCall(fn, ...a) { const h = this.hudS; if (h && h.ready) h[fn](...a); else this.time.delayedCall(80, () => this.hudCall(fn, ...a)); }
+  banner(text, color, ms = 1600) { this.hudCall('banner', text, ms); }
+  toast(text, ms = 1800) { if (text) this.hudCall('toast', text, ms); }
+  burst(x, y, tex, n, speed, tint) { this.v3.burst(x, y, tex, n, speed, tint); }
+  say(text, x, y, ms = 1800) { const q = this.v3.project(x, y, 2.4); this.hudCall('say', text, q.x, q.y, ms); }
+  shake(d = 200, i = 0.01) { this.v3.shake(d, i); }
 
   // ───────────────────────── Gegner ─────────────────────────
   spawnEnemy(type, x, y, opt = {}) {
@@ -378,18 +327,17 @@ class LevelScene extends Phaser.Scene {
   teamDown() {
     if (this.downing) return; this.downing = true;
     this.toast('Autsch! Zurück zum letzten Checkpoint…', 1400);
-    this.cameras.main.fadeOut(600);
+    this.hudCall('fade', 'out', 600);
     this.time.delayedCall(700, () => {
       this.hearts = this.maxHearts; this.downing = false;
       for (const p of this.p) { if (p.holding) this.release(p, false); this.placeAt(p, this.cp.x + p.idx * 40, this.cp.y); }
       if (this.bossObj && this.bossObj.started) this.resetBoss();
-      this.cameras.main.fadeIn(400);
+      this.hudCall('fade', 'in', 400);
     });
   }
   resetBoss() {
     this.bossStarted = false; this.bossObj.reset();
     if (this.lockGate) { this.lockGate.body.enable = false; this.lockGate.setAlpha(0); }
-    this.cameras.main.startFollow(this.camT, true, 0.12, 0.12);
   }
   placeAt(p, x, y) {
     p.state = 'normal'; p.body.enable = true; p.vis.setVisible(true).setScale(1).setAngle(0); p.setVisible(true); p.noz.setVisible(true);
@@ -651,7 +599,8 @@ class LevelScene extends Phaser.Scene {
       if (p.z < 14 && !p.fly) for (const e of this.enemyList) if (e.active && ov(p, e)) this.hurtPlayer(p, e.x, e.y);
       if (p.fly) for (const e of this.enemyList.slice()) if (e.active && ov(p, e)) this.damageEnemy(e, 2, p.x, p.y);
     }
-    for (const s of this.signs) s.t.setVisible(this.p.some(p => Math.abs(p.x - s.s.x) < 130 && Math.abs(p.y - s.s.y) < 110));
+    const ns = this.signs.find(sg => this.p.some(p => Math.abs(p.x - sg.s.x) < 130 && Math.abs(p.y - sg.s.y) < 110));
+    const stxt = ns ? ns.text : null; if (stxt !== this.lastSign) { this.lastSign = stxt; this.hudCall('sign', stxt); }
   }
 
   // ───────────────────────── Kette ─────────────────────────
@@ -687,7 +636,7 @@ class LevelScene extends Phaser.Scene {
       return;
     }
     if (n.back || this.p.some(p => p.in.startEdge)) { this.setPause(true); return; }
-    this.fx.clear();
+    if (this.bossObj) this.bossObj.warns = [];
     this.updatePuzzles(time, dt);
     for (const p of this.p) this.updatePlayer(p, dt, time);
     this.tether();
@@ -698,11 +647,8 @@ class LevelScene extends Phaser.Scene {
     this.touches(time);
     this.bossTrigger();
     this.drawFx(time);
-    this.updateCamera();
-    this.updateHud();
     this.checkExit();
-    for (const c of this.crateList) c.setDepth(c.y);
-    for (const t of this.pickups) if (t.active) t.setDepth(t.y);
+    this.v3.update(dt, time);
   }
   bossTrigger() {
     if (this.bossStarted || !this.bossObj) return;
@@ -710,51 +656,17 @@ class LevelScene extends Phaser.Scene {
     if (this.p.every(p => p.state === 'normal' && p.x > lim)) {
       this.bossStarted = true; this.bossObj.start();
       const g = this.lockGate; g.body.enable = true; g.setAlpha(0.9); Sfx.play('gate');
-      const cam = this.cameras.main; cam.stopFollow();
-      this.tweens.add({ targets: cam, scrollX: this.A * T - 16, scrollY: this.AY * T, duration: 900, ease: 'Sine.inOut' });
       Sfx.music('boss'); Sfx.play('boss');
     }
   }
   drawFx(time) {
-    const g = this.fx;
     for (const p of this.p) {
-      if (p.state !== 'normal') { p.icon.setVisible(false); continue; }
-      const a = p.aim, mx = p.x + a.x * 26, my = p.y - 10 + a.y * 12;
-      if (p.sucking) {
-        const ang = Math.atan2(a.y, a.x), w = Phaser.Math.DegToRad(50), r = 175;
-        g.fillStyle(0xffffff, 0.16); g.beginPath(); g.moveTo(mx, my); g.arc(mx, my, r, ang - w, ang + w); g.closePath(); g.fillPath();
-        g.lineStyle(3, 0xffffff, 0.5);
-        for (let i = 0; i < 3; i++) { const k = ((time / 400 + i / 3) % 1), rr = r * (1 - k); g.beginPath(); g.arc(mx, my, rr, ang - w * 0.8, ang + w * 0.8); g.strokePath(); }
-      }
-      if (p.holding) {
-        let d = 0; const maxD = LV * FLY_T; let lx = p.x, ly = p.y;
-        while (d < maxD) { const nx = lx + a.x * 12, ny = ly + a.y * 12; if (this.wallPx(nx, ny)) break; lx = nx; ly = ny; d += 12; }
-        const bad = this.pitAt(lx, ly) && !this.onMover(lx, ly);
-        const col = bad ? 0xff5a5a : 0x7dff8a;
-        g.fillStyle(0xffffff, 0.9);
-        for (let i = 1; i < 14; i++) { const t = i / 14; g.fillCircle(p.x + (lx - p.x) * t, p.y + (ly - p.y) * t - Math.sin(t * Math.PI) * 60 - 20, 3.5); }
-        g.lineStyle(5, col, 0.95); g.strokeEllipse(lx, ly, 46 + Math.sin(time / 100) * 4, 24);
-        p.icon.setVisible(true).setPosition(p.x, p.y - 76 + Math.sin(time / 120) * 3).setDepth(p.y + 20);
-      } else p.icon.setVisible(false);
+      p.prev = null;
+      if (p.state !== 'normal' || !p.holding) continue;
+      const a = p.aim; let d = 0; const maxD = LV * FLY_T; let lx = p.x, ly = p.y;
+      while (d < maxD) { const nx = lx + a.x * 12, ny = ly + a.y * 12; if (this.wallPx(nx, ny)) break; lx = nx; ly = ny; d += 12; }
+      p.prev = { lx, ly, bad: this.pitAt(lx, ly) && !this.onMover(lx, ly) };
     }
-  }
-  updateCamera() {
-    if (this.bossStarted) return;
-    const [a, b] = this.p;
-    this.camT.setPosition((a.x + b.x) / 2, (a.y + b.y) / 2);
-  }
-  updateHud() {
-    for (let i = 0; i < this.maxHearts; i++) this.heartI[i].setTexture(this.kids || i < this.hearts ? 'heart' : 'heart_e');
-    this.coinT.setText(String(this.coinCount));
-    this.p.forEach((p, i) => this.ammoT[i].setText('×' + p.ammo));
-    const bo = this.bossObj, g = this.bossG; g.clear();
-    if (bo && bo.started && !bo.dead) {
-      const w = 520, x = W / 2 - w / 2, y = 26;
-      g.fillStyle(OUT, 1); g.fillRoundedRect(x - 5, y - 5, w + 10, 30, 12);
-      g.fillStyle(0x4a2030, 1); g.fillRoundedRect(x, y, w, 20, 8);
-      g.fillStyle(0xff4a5a, 1); g.fillRoundedRect(x, y, Math.max(0, w * bo.hp / bo.maxHp), 20, 8);
-      this.bossName.setVisible(true).setText(bo.title);
-    } else this.bossName.setVisible(false);
   }
   checkExit() {
     if (!this.exitOpen || this.done) return;
@@ -771,21 +683,12 @@ class LevelScene extends Phaser.Scene {
   }
 
   // ───────────────────────── Pause / Ende ─────────────────────────
-  setPause(on) {
-    this.paused = on; this.physics.world.isPaused = on;
-    this.pauseG.setVisible(on); this.pauseT.setVisible(on);
-    if (on) { this.pauseG.clear().fillStyle(0x000000, 0.65).fillRect(0, 0, W, H); this.pauseT.setText('PAUSE\n\nA / Enter: weiter\nEsc / B: zurück zum Menü'); }
-  }
+  setPause(on) { this.paused = on; this.physics.world.isPaused = on; this.hudCall('pause', on); }
   finish() {
     if (this.done) return; this.done = true; Sfx.music(null); Sfx.play('win');
     for (const p of this.p) p.body.setVelocity(0, 0);
-    const secs = Math.round((this.time.now - this.t0) / 1000);
-    this.add.graphics().setScrollFactor(0).setDepth(6000).fillStyle(0x000000, 0.7).fillRect(0, 0, W, H);
-    this.add.text(W / 2, 220, 'LEVEL GESCHAFFT!', { fontFamily: FONT, fontSize: '80px', fontStyle: 'bold', color: '#ffe15a', stroke: '#16101f', strokeThickness: 14 }).setOrigin(0.5).setScrollFactor(0).setDepth(6001);
-    this.add.text(W / 2, 360, `Münzen: ${this.coinCount}     Zeit: ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`, { fontFamily: FONT, fontSize: '40px', color: '#fff', stroke: '#16101f', strokeThickness: 8 }).setOrigin(0.5).setScrollFactor(0).setDepth(6001);
-    const hint = this.add.text(W / 2, 480, '▶ Weiter mit A / Enter', { fontFamily: FONT, fontSize: '30px', color: '#fff', stroke: '#16101f', strokeThickness: 6 }).setOrigin(0.5).setScrollFactor(0).setDepth(6001);
-    this.tweens.add({ targets: hint, alpha: 0.3, yoyo: true, repeat: -1, duration: 500 });
-    for (let i = 0; i < 30; i++) this.time.delayedCall(i * 40, () => this.burst(this.p[0].x + Phaser.Math.Between(-300, 300), this.p[0].y + Phaser.Math.Between(-200, 100), 'star', 3, 120));
+    this.hudCall('finish', this.coinCount, Math.round((this.time.now - this.t0) / 1000));
+    for (let i = 0; i < 30; i++) this.time.delayedCall(i * 40, () => this.burst(this.p[0].x + Phaser.Math.Between(-300, 300), this.p[0].y + Phaser.Math.Between(-200, 100), 'star', 3, 160));
   }
   next() {
     const lv = this.lv, last = lv >= LEVELS.length - 1;

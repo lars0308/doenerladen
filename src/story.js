@@ -1,4 +1,4 @@
-const FONT = '"Comic Sans MS", "Chalkboard SE", "Comic Neue", "Trebuchet MS", Verdana, sans-serif';
+const FONT = '"Lilita One", "Comic Sans MS", "Trebuchet MS", Verdana, sans-serif';
 
 const WHO = {
   knox:  { name: 'Knox',  color: '#3fa7ff', tex: 'pt_knox',  hero: true },

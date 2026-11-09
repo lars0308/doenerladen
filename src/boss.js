@@ -17,7 +17,6 @@ class Boss {
     this.spr.setCollideWorldBounds(true);
     scene.physics.add.collider(this.spr, scene.wallG);
     scene.physics.add.collider(this.spr, scene.gateG);
-    this.g = scene.add.graphics().setDepth(1.55);
     this.shieldS = null;
     this.reset();
   }
@@ -31,7 +30,6 @@ class Boss {
     if (this.kind === 'slime') spr.vis.setTexture('boss_slime');
     if (this.shieldS) { this.shieldS.destroy(); this.shieldS = null; }
     if (this.kind === 'mech') this.shieldS = s.add.image(spr.x, spr.y, 'shield').setDepth(3000).setAlpha(0);
-    this.g.clear();
   }
   start() {
     this.started = true; this.set('intro', 1300);
@@ -59,7 +57,7 @@ class Boss {
     if (this.vuln) { this.hurt(1); Sfx.play('stomp'); } else { this.hurt(0); }
   }
   die() {
-    this.dead = true; this.st = 'dead'; this.zones = []; this.rings = []; this.g.clear();
+    this.dead = true; this.st = 'dead'; this.zones = []; this.rings = [];
     const s = this.s, spr = this.spr;
     Sfx.play('boom'); s.shake(900, 0.02); Sfx.music(null);
     spr.body.setVelocity(0, 0); spr.body.enable = false;
@@ -76,24 +74,17 @@ class Boss {
   ring(x, y, max) { this.rings.push({ x, y, r: 30, max, v: 330 / (this.k > 1 ? 1.25 : 1), hit: new Set() }); }
   shock() { this.s.shake(350, 0.014); Sfx.play('boom'); }
   drawHazards(time, dt) {
-    const g = this.g, s = this.s; g.clear();
+    const s = this.s;
     for (const z of this.zones.slice()) {
       const age = time - z.t0;
-      if (age < z.warn) {
-        const pu = 0.25 + 0.2 * Math.sin(time / 80);
-        g.fillStyle(z.type === 'bomb' ? 0xff5a2e : 0x6ee05a, pu); g.fillCircle(z.x, z.y, z.r);
-        g.lineStyle(4, z.type === 'bomb' ? 0xff3a2e : 0x2fa02a, 0.9); g.strokeCircle(z.x, z.y, z.r * (0.6 + 0.4 * age / z.warn)); g.strokeCircle(z.x, z.y, z.r);
-      } else if (age < z.warn + z.life) {
-        if (z.type === 'bomb') {
-          if (!z.boom) { z.boom = true; s.shake(150, 0.01); Sfx.play('boom'); s.burst(z.x, z.y, 'puff', 10, z.r, 0xffa050); s.burst(z.x, z.y, 'star', 4, z.r); }
-          g.fillStyle(0xffb04a, 0.8); g.fillCircle(z.x, z.y, z.r); g.fillStyle(0xfff0a0, 0.9); g.fillCircle(z.x, z.y, z.r * 0.55);
-        } else { g.fillStyle(0x6ee05a, 0.75); g.fillCircle(z.x, z.y, z.r); g.lineStyle(4, 0x2fa02a, 1); g.strokeCircle(z.x, z.y, z.r); g.fillStyle(0xffffff, 0.4); g.fillCircle(z.x - 14, z.y - 8, 6); }
+      if (age < z.warn) continue;
+      if (age < z.warn + z.life) {
+        if (z.type === 'bomb' && !z.boom) { z.boom = true; s.shake(150, 0.01); Sfx.play('boom'); s.burst(z.x, z.y, 'puff', 10, z.r, 0xffa050); s.burst(z.x, z.y, 'star', 4, z.r); }
         for (const p of s.p) if (p.state === 'normal' && p.z < 14 && Math.hypot(p.x - z.x, p.y - z.y) < z.r) s.hurtPlayer(p, z.x, z.y);
       } else this.zones.splice(this.zones.indexOf(z), 1);
     }
     for (const r of this.rings.slice()) {
       r.r += r.v * dt;
-      g.lineStyle(10, 0xffe15a, 0.9); g.strokeCircle(r.x, r.y, r.r); g.lineStyle(4, 0xff7a2e, 0.9); g.strokeCircle(r.x, r.y, r.r - 6);
       for (const p of s.p) if (p.state === 'normal' && p.z < 14 && !r.hit.has(p) && Math.abs(Math.hypot(p.x - r.x, p.y - r.y) - r.r) < 20) { r.hit.add(p); s.hurtPlayer(p, r.x, r.y); }
       if (r.r > r.max) this.rings.splice(this.rings.indexOf(r), 1);
     }
@@ -123,7 +114,7 @@ class Boss {
       b.setVelocity((this.land.x - spr.x) / (this.t / 1000), (this.land.y - spr.y) / (this.t / 1000));
     } else if (this.st === 'leap') {
       const f = 1 - this.t / this.leapT; spr.z = Math.sin(Math.max(0, Math.min(1, f)) * Math.PI) * 150;
-      this.g.lineStyle(5, 0xff3a2e, 0.9); this.g.strokeCircle(this.land.x, this.land.y, 80); this.g.fillStyle(0xff3a2e, 0.18 + f * 0.3); this.g.fillCircle(this.land.x, this.land.y, 80);
+      (s.bossObj.warns = s.bossObj.warns || []).push({ x: this.land.x, y: this.land.y, r: 80, leap: true });
       if (this.t <= 0) {
         b.setVelocity(0, 0); spr.z = 0; this.shock(); this.n++;
         this.ring(spr.x, spr.y, 460);
@@ -171,10 +162,9 @@ class Boss {
       this.dir = Math.abs(dx) > Math.abs(dy) ? { x: Math.sign(dx) || 1, y: 0 } : { x: 0, y: Math.sign(dy) || 1 };
       spr.vis.setFlipX(this.dir.x < 0 || (this.dir.x === 0 && spr.vis.flipX));
       spr.vis.x += Math.sin(time / 30) * 1.5;
-      const L = 900, w = 110, g = this.g;
-      g.fillStyle(0xff3a2e, 0.18 + 0.12 * Math.sin(time / 60)); g.lineStyle(4, 0xff3a2e, 0.8);
-      const rx = this.dir.x ? (this.dir.x > 0 ? spr.x : spr.x - L) : spr.x - w / 2, ry = this.dir.y ? (this.dir.y > 0 ? spr.y : spr.y - L) : spr.y - w / 2;
-      const rw = this.dir.x ? L : w, rh = this.dir.y ? L : w; g.fillRect(rx, ry, rw, rh); g.strokeRect(rx, ry, rw, rh);
+      const L = 900, w = 110;
+      const rx = this.dir.x ? spr.x + this.dir.x * L / 2 : spr.x, ry = this.dir.y ? spr.y + this.dir.y * L / 2 : spr.y;
+      s.bossObj.warns.push({ x: rx, y: ry, w: this.dir.x ? L : w, h: this.dir.y ? L : w, rect: true });
       if (this.t <= 0) { this.set('charge', 3000); Sfx.play('boss'); }
     } else if (this.st === 'charge') {
       const sp = (this.hp <= this.maxHp / 2 ? 560 : 470) / (this.k > 1 ? 1.35 : 1);
@@ -210,7 +200,6 @@ class Boss {
     this.wasV = this.vuln;
     sh.setPosition(spr.x, spr.y - spr.z - 100).setAlpha(this.vuln ? 0 : 0.6 + Math.sin(time / 120) * 0.15).setScale(0.9);
     // Schatten-Markierung unter dem Mech, damit man sieht, wohin man schießen muss
-    this.g.lineStyle(3, 0xffffff, 0.5); this.g.strokeEllipse(spr.x, spr.y, 130, 60);
     this.cool -= dt * 1000;
     if (this.cool <= 0) {
       this.n++;
