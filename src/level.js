@@ -182,7 +182,7 @@ class LevelScene extends Phaser.Scene {
     this.physics.add.existing(g, true); this.gateG.add(g); g.body.enable = false; g.lock = true; this.lockGate = g;
     this.exitPos = { x: (A + 23) * T + 24, y: (AY + 7) * T + 40 };
     this.exitSpr = this.add.image(this.exitPos.x, this.exitPos.y + 40, 'exit_closed').setOrigin(0.5, 1).setDepth(this.exitPos.y + 40);
-    this.bossObj = new Boss(this, kind, (A + 19) * T, (AY + 7.5) * T);
+    this.bossObj = new Boss(this, kind, (A + 21) * T, (AY + 7.5) * T);
     for (let i = 0; i < 5; i++) this.trash(A + 3 + i * 5, AY + (i % 2 ? 12 : 2));
   }
 

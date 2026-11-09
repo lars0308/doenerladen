@@ -160,7 +160,9 @@ class View3D {
     const lists = {}; const add = (key, o) => (lists[key] = lists[key] || []).push(o);
     floors.forEach(([x, y]) => { if (occ.has(x + ',' + y) || rnd() > 0.07) return; const k = th.ground[Math.floor(rnd() * th.ground.length)]; add(k, { x: x + 0.15 + rnd() * 0.7, y: 0, z: y + 0.15 + rnd() * 0.7, ry: rnd() * 6.28, s: k[0] === 'f' ? 1.5 : 1.7 }); });
     walls.forEach(([x, y]) => {
-      if (rnd() > 0.45) return; const k = th.wallTop[Math.floor(rnd() * th.wallTop.length)];
+      // Deko nur auf Wänden, die nicht direkt am Spielfeld liegen (verdeckt sonst Figuren und Bosse)
+      if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => s.at(x + dx, y + dy) === 1)) return;
+      if (rnd() > 0.75) return; const k = th.wallTop[Math.floor(rnd() * th.wallTop.length)];
       const big = /container|chimney|tank|crypt/.test(k), sz = big ? 1.1 : (/tree|pine/.test(k) ? 1.6 : 1.8);
       add(k, { x: x + 0.5, y: 1.25, z: y + 0.5, ry: Math.floor(rnd() * 4) * Math.PI / 2, s: sz });
     });
@@ -333,7 +335,7 @@ class View3D {
     } else if (k === 'keeper') {
       const o = a3clone('g:character-keeper', 3.4); g.add(o); g.userData.obj = o;
       const mx = new THREE.AnimationMixer(o); g.userData.mixer = mx; g.userData.acts = {}; a3anims('g:character-keeper').forEach(c => g.userData.acts[c.name] = mx.clipAction(c));
-      const lan = a3clone('g:lantern-candle', 3.2); lan.position.set(1.2, 1.2, 0.6); g.add(lan);
+      const lan = a3clone('g:lantern-candle', 2.0); lan.position.set(1.3, 0.9, 0.7); g.add(lan);
     }
     return g;
   }
