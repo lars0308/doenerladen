@@ -77,6 +77,8 @@ const Sfx = (() => {
     sewer:   { bpm: 96,  bass: [0, 0, 0, 3, 5, 5, 3, 3], arp: [0, 3, 6, 9],  root: 49, wave: 'sawtooth', lead: 'triangle' },
     junk:    { bpm: 126, bass: [0, 7, 0, 7, 5, 12, 5, 12], arp: [0, 7, 12, 7], root: 52, wave: 'square', lead: 'square' },
     factory: { bpm: 132, bass: [0, 0, 3, 0, 5, 5, 7, 6], arp: [0, 3, 7, 3],  root: 46, wave: 'sawtooth', lead: 'square' },
+    winter:  { bpm: 112, bass: [0, 0, 7, 7, 3, 3, 5, 5], arp: [0, 7, 12, 7],  root: 58, wave: 'triangle', lead: 'triangle' },
+    grave:   { bpm: 92,  bass: [0, 0, 1, 1, 0, 0, 6, 6], arp: [0, 3, 6, 3],  root: 44, wave: 'sawtooth', lead: 'triangle' },
     boss:    { bpm: 150, bass: [0, 0, 1, 0, 0, 0, 3, 1], arp: [0, 1, 7, 6],  root: 41, wave: 'sawtooth', lead: 'square' },
   };
   const hz = (root, semis) => root * Math.pow(2, semis / 12);

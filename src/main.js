@@ -14,6 +14,6 @@
     transparent: true,
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
-    scene: [BootScene, MenuScene, SelectScene, ControlsScene, StoryScene, LevelScene, HudScene],
+    scene: [BootScene, MenuScene, CharSelectScene, SelectScene, MinigameScene, ControlsScene, StoryScene, LevelScene, HudScene],
   });
 })();

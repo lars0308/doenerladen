@@ -1,11 +1,17 @@
-# Knox & Zippy – Müllalarm!
+# Müllalarm! – Zwei Saugroboter, ein Haufen Chaos
 
-Ein lustiges Zwei-Spieler-Abenteuer in **3D mit Kamera schräg von oben** (Mario-Odyssey-Feeling), für Eltern und Kind
-oder Paare. Auf dem Laptop am Fernseher mit **zwei Controllern** (oder Tastatur).
+Ein lustiges **Zwei-Spieler-Abenteuer in 3D** (Kamera schräg von oben, Mario-Odyssey-Feeling) für Eltern und Kind
+oder Paare. Auf dem Laptop am Fernseher mit **zwei Controllern** – oder an einer Tastatur.
 
 ## Starten
-`index.html` im Browser öffnen (Chrome/Edge/Firefox) – fertig, kein Server und keine Installation nötig.
-Vollbild: **F11**. Ton an/aus im Menü mit **M**.
+`index.html` im Browser öffnen (Chrome/Edge/Firefox) – kein Server und keine Installation nötig. Vollbild mit **F11**.
+
+## Spielmodi
+* **Abenteuer** – 6 Welten mit Story, Rätseln und je einem Endgegner: Hinterhof · Kanalisation · Schrottplatz · Eis-Müllhalde · Spuk-Friedhof · Unrat-Fabrik.
+* **Minispiele** – Münzjagd, Schleim-Schießbude, Partner-Weitwurf (mit Sternen-Wertung).
+* **Level wählen** – jede Welt einzeln spielen.
+* **Spieler & Farben** – jede/r wählt eine von 5 Farben (Grün, Rot, Blau, Weiß, Lila) und einen Namen (Voreinstellung oder selbst tippen).
+* **Kinder-Modus** – kein Herzverlust, langsamere Gegner, schwächere Bosse, mehr Zeit bei Schaltern, Munition lädt sich nach.
 
 ## Steuerung
 | | Controller | Spieler 1 (Tastatur) | Spieler 2 (Tastatur) |
@@ -16,15 +22,11 @@ Vollbild: **F11**. Ton an/aus im Menü mit **M**.
 | Schießen | X / RT / RB | F | . |
 | Pause | Start | Esc | Esc |
 
-* **Saugen** holt Müll in der Nähe als Munition und – nah davor – auch den Partner (er steckt dann im Bauch).
-* **Schießen** feuert Müll in Blickrichtung: auf Gegner, Kisten und Zielscheiben. Mit dem Partner im Bauch wird er **geworfen** –
-  über Abgründe! Ein Ring zeigt die Landung (grün = sicher, rot = Absturz).
-* Ihr hängt an einer **Kette** und könnt euch nicht beliebig weit voneinander entfernen.
-* **Kinder-Modus:** keine Herzverluste, langsamere Gegner, schwächere Bosse, mehr Zeit bei Schaltern, Munition lädt sich nach.
+* **Saugen** holt Müll als Munition – und, ganz nah davor, auch den Partner (er steckt dann im Bauch).
+* **Schießen** feuert Müll in Blickrichtung. Mit dem Partner im Bauch wird er **geworfen** – über Abgründe! Ein Ring zeigt die Landung (grün = sicher).
+* Ihr hängt an einer **Kette**. Zusammen löst ihr Schalter, Platten und Brücken.
+* **Eis** ist rutschig, **Sprungfedern** schleudern euch weit, **Gräber** spucken Zombies aus. Gegner werfen Bomben, Pfeile und Feuerbälle – hopst drüber!
 
-## Inhalt
-4 Welten (Hinterhof, Kanalisation, Schrottplatz, Unrat-Fabrik) mit je einem Endgegner, Rätseln, Gegnern und Story-Szenen.
-
-## Technik & Credits
-Three.js (3D) + Phaser (Menüs/HUD/Spiellogik). Siehe [CREDITS.md](CREDITS.md). Modelle: Kenney.
-`tools/build_assets.py` bettet die Modelle in `src/assets.js` ein (nur nötig, wenn Assets ausgetauscht werden).
+## Technik
+Three.js (3D) + Phaser (Menüs, HUD, Spiellogik). Alle Modelle sind in `src/assets.js` eingebettet (`tools/build_assets.py` erzeugt die Datei aus `assets/packs`),
+deshalb läuft das Spiel auch per Doppelklick. Credits & Lizenzen: [CREDITS.md](CREDITS.md).
