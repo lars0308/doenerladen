@@ -17,7 +17,8 @@ class HudScene extends Phaser.Scene {
       this.add.image(x + 118, y + 90, 'trash0').setScale(0.7);
       const bar = this.add.graphics(), txt = this.add.text(x + 304, y + 90, '', st(22)).setOrigin(0.5);
       const ko = this.add.text(x + 250, y + 58, '', st(30, { color: '#ff6a8a' })).setOrigin(0.5);
-      return { x, y, w, h, hearts, bar, txt, ko };
+      const pwT = this.add.text(x + w / 2, y - 18, '', st(26, { color: '#ffe15a' })).setOrigin(0.5);
+      return { x, y, w, h, hearts, bar, txt, ko, pwT };
     });
     this.hintG = this.add.graphics(); this.hintT = [0, 1].map(() => this.add.text(0, 0, '', st(20)).setOrigin(0.5));
     this.bossG = this.add.graphics();
@@ -34,7 +35,7 @@ class HudScene extends Phaser.Scene {
   update() {
     const L = this.L; if (!L || !L.p || !L.p[1]) return;
     this.coinT.setText(String(L.coinCount));
-    this.trashT.setText(L.mini ? '' : '♻ ' + L.trashGot + ' / ' + L.trashTotal);
+    this.trashT.setText(L.mini ? '' : '♻ ' + L.trashGot + ' / ' + (L.quota || L.trashTotal) + (L.quota ? ' (Ziel)' : ''));
     L.p.forEach((p, i) => {
       const u = this.pl[i];
       u.hearts.forEach((hh, k) => hh.setTexture(L.kids || k < p.hp ? 'heart' : 'heart_e').setAlpha(p.state === 'down' ? 0.4 : 1));
@@ -42,7 +43,9 @@ class HudScene extends Phaser.Scene {
       g.fillStyle(0x16101f, 1); g.fillRoundedRect(u.x + 138, u.y + 80, 130, 20, 8);
       g.fillStyle(full ? 0x7dff8a : 0xb8a56a, 1); g.fillRoundedRect(u.x + 140, u.y + 82, Math.max(6, 126 * f), 16, 6);
       u.txt.setText(full ? 'VOLL' : p.ammo + '/' + p.maxAmmo).setColor(full ? '#7dff8a' : '#ffffff');
-      u.ko.setText(p.state === 'down' ? 'K.O.' : (L.kids ? '' : ''));
+      u.ko.setText(p.state === 'down' ? 'K.O.' : '');
+      const left = p.pw ? Math.max(0, Math.ceil((p.pw.until - L.time.now) / 1000)) : 0;
+      u.pwT.setText(left ? { ball: '⚽ Hüpf-Ball', wings: '🪽 Flügel', magnet: '🧲 Magnet' }[p.pw.kind] + '  ' + left + ' s' : '');
     });
     // Pfeile zum Partner, wenn er außerhalb des Bildes ist
     const hg = this.hintG; hg.clear(); this.hintT.forEach(t => t.setVisible(false));

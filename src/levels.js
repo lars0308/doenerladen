@@ -3,7 +3,7 @@
 const LEVELS = [
   // ───────────────────────── 1: Hinterhof ─────────────────────────
   {
-    name: 'Hinterhof-Chaos', theme: 'alley', size: [131, 24], start: [4, 14], arena: [104, 6], entry: [13, 4], boss: 'can', music: 'alley',
+    name: 'Hinterhof-Chaos', theme: 'alley', shift: 40, size: [131, 24], start: [4, 14], arena: [104, 6], entry: [13, 4], boss: 'can', music: 'alley',
     story: { pre: 'intro', post: 'post0' },
     build(s) {
       s.floor(2, 8, 16, 13); s.floor(18, 13, 8, 4);
@@ -15,7 +15,7 @@ const LEVELS = [
       s.floor(26, 6, 18, 17); s.pit(33, 6, 2, 17);
       s.sign(28, 12, 'Ein Graben! A = hopsen.');
       s.coins(31, 14, 5);
-      s.enemy('walker', 29, 18); s.enemy('flyer', 40, 10); s.enemy('armor', 38, 18);
+      s.enemy('walker', 29, 18); s.enemy('flyer', 40, 10); s.enemy('armor', 38, 18); s.enemy('jumper', 30, 9);
       s.trash(28, 8); s.trash(41, 20); s.crates(40, 7, 2, 2, true);
       s.floor(44, 13, 10, 4);
       s.sign(46, 14, 'Kisten im Weg?\nSchieß sie kaputt!');
@@ -26,6 +26,10 @@ const LEVELS = [
       s.enemy('walker', 56, 16); s.enemy('walker', 64, 12);
       s.floor(68, 13, 8, 4); s.gate('r1', 68, 13, 1, 4, 'red');
       s.checkpoint(72, 14);
+      // Große offene Fläche mit Hindernissen, Plateau (nur per Trampolin erreichbar) und viel Müll
+      s.field(76, 4, 40, 20, { enemies: [['walker',5],['flyer',3],['armor',2],['charger',2],['jumper',3],['kamikaze',2]], coins: 8, avoid: [[87, 6, 21, 12]] });
+      s.plateau(92, 9, 10, 8, 2.2); s.coins(94, 11, 6); s.food(97, 12, 'cake'); s.checkpoint(78, 14);
+      s.ox = 40;
       s.floor(76, 6, 22, 17); s.pit(84, 6, 7, 17);
       s.sign(78, 14, 'Zu weit! Partner einsaugen (B), zielen,\nX = rüberwerfen. Grün = sicher.\nDann auf die Platte stellen!');
       s.trash(78, 10); s.trash(78, 18); s.trash(80, 20);
@@ -41,7 +45,7 @@ const LEVELS = [
   },
   // ───────────────────────── 2: Kanalisation ─────────────────────────
   {
-    name: 'Unter der Stadt', theme: 'sewer', size: [127, 24], start: [4, 14], arena: [100, 5], entry: [13, 4], boss: 'slime', music: 'sewer',
+    name: 'Unter der Stadt', theme: 'sewer', shift: 40, size: [127, 24], start: [4, 14], arena: [100, 5], entry: [13, 4], boss: 'slime', music: 'sewer',
     story: { pre: 'pre1', post: 'post1' },
     build(s) {
       s.floor(2, 9, 14, 12); s.floor(16, 13, 6, 4);
@@ -60,9 +64,14 @@ const LEVELS = [
       s.enemy('walker', 52, 16); s.enemy('charger', 62, 19); s.enemy('flyer', 58, 10);
       s.floor(72, 8, 20, 13); s.checkpoint(73, 14);
       s.spikes(78, 8, 2, 6); s.spikes(84, 15, 2, 6);
-      s.enemy('charger', 80, 18); s.enemy('archer', 86, 11); s.enemy('turret', 90, 9); s.enemy('archer', 90, 19);
+      s.enemy('charger', 80, 18); s.enemy('archer', 86, 11); s.enemy('turret', 90, 9); s.enemy('archer', 90, 19); s.enemy('sawer', 82, 11, { axis: 'v' }); s.enemy('kamikaze', 76, 12);
       s.trash(76, 18); s.trash(82, 10); s.trash(88, 14); s.coins(75, 10, 4);
       s.crates(75, 12, 1, 3, true);
+
+      // Große offene Fläche mit Hindernissen, Plateau (nur per Trampolin erreichbar) und viel Müll
+      s.field(92, 4, 40, 20, { enemies: [['walker',4],['archer',3],['flyer',3],['charger',2],['sawer',3],['kamikaze',3],['jumper',2]], coins: 8, avoid: [[103, 6, 21, 12]] });
+      s.plateau(108, 9, 10, 8, 2.2); s.coins(110, 11, 6); s.food(113, 12, 'cake'); s.checkpoint(94, 14);
+      s.ox = 40;
       s.floor(92, 13, 8, 4); s.checkpoint(96, 14);
       s.floor(100, 5, 26, 15);
       s.wall(105, 8, 2, 2); s.wall(118, 8, 2, 2); s.wall(105, 13, 2, 2); s.wall(118, 13, 2, 2);
@@ -71,7 +80,7 @@ const LEVELS = [
   },
   // ───────────────────────── 3: Schrottplatz ─────────────────────────
   {
-    name: 'Schrottplatz Süd', theme: 'junk', size: [129, 24], start: [4, 14], arena: [102, 5], entry: [13, 4], boss: 'digger', music: 'junk',
+    name: 'Schrottplatz Süd', theme: 'junk', shift: 40, size: [129, 24], start: [4, 14], arena: [102, 5], entry: [13, 4], boss: 'digger', music: 'junk',
     story: { pre: 'pre2', post: 'post2' },
     build(s) {
       s.floor(2, 9, 16, 12);
@@ -85,7 +94,7 @@ const LEVELS = [
       s.floor(46, 6, 18, 17); s.conveyor(46, 12, 18, 6, -1, 100);
       s.sign(47, 10, 'Gelber Schalter: Tor öffnet\nnur kurz! Schnell hinterher!');
       s.target('c', 58, 6, 'yellow', 7);
-      s.enemy('flyer', 52, 9); s.enemy('walker', 58, 19); s.enemy('armor', 54, 20); s.enemy('charger', 50, 8);
+      s.enemy('flyer', 52, 9); s.enemy('walker', 58, 19); s.enemy('armor', 54, 20); s.enemy('charger', 50, 8); s.enemy('sawer', 56, 14, { axis: 'h' });
       s.trash(48, 9); s.trash(49, 9); s.trash(50, 20);
       s.floor(64, 13, 10, 4); s.gate('c', 64, 13, 1, 4, 'yellow');
       s.checkpoint(66, 14);
@@ -96,6 +105,11 @@ const LEVELS = [
       s.checkpoint(77, 12);
       s.enemy('walker', 78, 10); s.enemy('armor', 78, 18); s.enemy('flyer', 90, 10); s.enemy('charger', 92, 18);
       s.enemy('archer', 94, 8); s.enemy('archer', 94, 20); s.trash(79, 14); s.trash(90, 14); s.coins(90, 12, 4, 0, 1);
+
+      // Große offene Fläche mit Hindernissen, Plateau (nur per Trampolin erreichbar) und viel Müll
+      s.field(96, 4, 40, 20, { enemies: [['walker',3],['armor',3],['archer',3],['charger',2],['flyer',3],['sawer',3],['kamikaze',3],['jumper',2]], coins: 8, avoid: [[107, 6, 21, 12]] });
+      s.plateau(112, 9, 10, 8, 2.2); s.coins(114, 11, 6); s.food(117, 12, 'cake'); s.checkpoint(98, 14);
+      s.ox = 40;
       s.floor(96, 13, 6, 4); s.checkpoint(98, 14);
       s.floor(102, 5, 26, 15);
       s.wall(107, 8, 2, 2); s.wall(120, 8, 2, 2); s.wall(107, 14, 2, 2); s.wall(120, 14, 2, 2);
@@ -104,7 +118,7 @@ const LEVELS = [
   },
   // ───────────────────────── 4: Eis-Müllhalde (neu) ─────────────────────────
   {
-    name: 'Eisige Müllhalde', theme: 'winter', size: [136, 24], start: [4, 14], arena: [109, 5], entry: [13, 4], boss: 'dragon', music: 'winter',
+    name: 'Eisige Müllhalde', theme: 'winter', shift: 40, size: [136, 24], start: [4, 14], arena: [109, 5], entry: [13, 4], boss: 'dragon', music: 'winter',
     story: { pre: 'pre3', post: 'post3' },
     build(s) {
       s.floor(2, 9, 16, 12); s.floor(18, 13, 10, 4);
@@ -133,7 +147,12 @@ const LEVELS = [
       s.wall(96, 9, 2, 4); s.wall(101, 13, 2, 4); s.wall(96, 17, 2, 4); s.wall(104, 8, 2, 3); s.wall(104, 18, 2, 3);
       s.enemy('archer', 100, 8); s.enemy('drake', 99, 19); s.enemy('charger', 94, 19); s.enemy('armor', 106, 12);
       s.trash(94, 8); s.trash(106, 20); s.trash(99, 12); s.crates(100, 19, 2, 2, true); s.coins(93, 7, 5);
-      s.floor(108, 13, 1, 4); s.checkpoint(106, 15);
+      s.checkpoint(106, 15);
+      // Große offene Fläche mit Hindernissen, Plateau (nur per Trampolin erreichbar) und viel Müll
+      s.field(108, 4, 40, 20, { enemies: [['walker',3],['archer',4],['drake',2],['armor',2],['ghost',2],['jumper',3],['kamikaze',2]], coins: 8, avoid: [[119, 6, 21, 12]] });
+      s.plateau(124, 9, 10, 8, 2.2); s.coins(126, 11, 6); s.food(129, 12, 'cake'); s.checkpoint(110, 14);
+      s.ox = 40;
+      s.floor(108, 13, 1, 4);
       s.floor(109, 5, 26, 15);
       s.wall(114, 8, 2, 2); s.wall(127, 8, 2, 2); s.wall(114, 13, 2, 2); s.wall(127, 13, 2, 2);
       s.boss('dragon');
@@ -141,7 +160,7 @@ const LEVELS = [
   },
   // ───────────────────────── 5: Spuk-Friedhof (neu) ─────────────────────────
   {
-    name: 'Spuk-Friedhof', theme: 'grave', size: [128, 24], start: [4, 14], arena: [101, 5], entry: [13, 4], boss: 'keeper', music: 'grave',
+    name: 'Spuk-Friedhof', theme: 'grave', shift: 40, size: [128, 24], start: [4, 14], arena: [101, 5], entry: [13, 4], boss: 'keeper', music: 'grave',
     story: { pre: 'pre4', post: 'post4' },
     build(s) {
       s.floor(2, 9, 16, 12); s.floor(18, 13, 8, 4);
@@ -160,14 +179,19 @@ const LEVELS = [
       s.floor(58, 13, 22, 4);
       s.sign(59, 14, 'Grabplatten fallen herab!\nWarte aufs rote Feld.');
       for (const [x, o] of [[62, 0], [68, 1.1], [74, 2.2]]) { s.crusher(x, 13, 3.4, o); s.crusher(x, 15, 3.4, o); }
-      s.enemy('flyer', 65, 14); s.coins(65, 14, 2); s.coins(71, 14, 2); s.trash(60, 16); s.trash(78, 13);
+      s.enemy('ghost', 65, 14); s.coins(65, 14, 2); s.coins(71, 14, 2); s.trash(60, 16); s.trash(78, 13);
       // Moor: Abgrund mit Wurf + Brücke
       s.floor(80, 6, 20, 17); s.pit(86, 6, 8, 17);
       s.sign(82, 14, 'Noch ein Abgrund!\nPartner rüberwerfen,\nPlatte drücken = Brücke.');
       s.plate('b', 97, 14, 'pink'); s.bridge('b', 86, 13, 8, 4, 'pink');
       s.trash(81, 10); s.trash(81, 18); s.trash(83, 14); s.enemy('walker', 82, 9); s.enemy('archer', 96, 9); s.enemy('archer', 96, 20);
       s.enemy('flyer', 90, 10); s.spawner(97, 17, 'walker', 7, 2); s.coins(96, 11, 3, 0, 1);
-      s.floor(100, 13, 1, 4); s.checkpoint(98, 17);
+      s.checkpoint(98, 17);
+      // Große offene Fläche mit Hindernissen, Plateau (nur per Trampolin erreichbar) und viel Müll
+      s.field(100, 4, 40, 20, { enemies: [['archer',3],['flyer',3],['armor',2],['ghost',4],['kamikaze',3],['jumper',2]], coins: 8, avoid: [[111, 6, 21, 12]], spawners: 3 });
+      s.plateau(116, 9, 10, 8, 2.2); s.coins(118, 11, 6); s.food(121, 12, 'cake'); s.checkpoint(102, 14);
+      s.ox = 40;
+      s.floor(100, 13, 1, 4);
       s.floor(101, 5, 26, 15);
       s.wall(106, 8, 2, 2); s.wall(119, 8, 2, 2); s.wall(106, 13, 2, 2); s.wall(119, 13, 2, 2);
       s.boss('keeper');
@@ -175,7 +199,7 @@ const LEVELS = [
   },
   // ───────────────────────── 6: Unrat-Fabrik (Finale) ─────────────────────────
   {
-    name: 'Die Unrat-Fabrik', theme: 'factory', size: [143, 24], start: [4, 14], arena: [116, 5], entry: [13, 4], boss: 'mech', music: 'factory',
+    name: 'Die Unrat-Fabrik', theme: 'factory', shift: 40, size: [143, 24], start: [4, 14], arena: [116, 5], entry: [13, 4], boss: 'mech', music: 'factory',
     story: { pre: 'pre5', post: 'outro' },
     build(s) {
       s.floor(2, 9, 14, 12);
@@ -191,7 +215,7 @@ const LEVELS = [
       s.floor(66, 6, 18, 17);
       s.sign(68, 14, 'Beide Schalter gleichzeitig an!\nJede/r zielt auf einen.');
       s.target('d', 72, 7, 'red', 9); s.target('d', 78, 7, 'blue', 9);
-      s.enemy('turret', 68, 19); s.enemy('drake', 80, 19); s.enemy('flyer', 75, 12);
+      s.enemy('turret', 68, 19); s.enemy('drake', 80, 19); s.enemy('flyer', 75, 12); s.enemy('sawer', 72, 14, { axis: 'v' });
       s.trash(70, 18); s.trash(72, 18); s.trash(76, 18);
       s.floor(84, 13, 8, 4); s.gate('d', 84, 13, 1, 4, 'red');
       s.sign(86, 14, 'Lasermauer! Gelben Schalter\ntreffen, dann durch.');
@@ -202,11 +226,33 @@ const LEVELS = [
       s.plate('f', 107, 14, 'pink'); s.bridge('f', 98, 13, 7, 4, 'pink');
       s.enemy('charger', 94, 9); s.enemy('armor', 94, 19); s.enemy('turret', 108, 8); s.enemy('flyer', 106, 18); s.enemy('archer', 108, 19);
       s.trash(93, 10); s.trash(93, 18); s.trash(94, 14); s.coins(106, 9, 4, 0, 1);
+
+      // Große offene Fläche mit Hindernissen, Plateau (nur per Trampolin erreichbar) und viel Müll
+      s.field(110, 4, 40, 20, { enemies: [['archer',3],['charger',3],['armor',2],['flyer',3],['drake',2],['sawer',4],['kamikaze',3],['jumper',2]], coins: 8, avoid: [[121, 6, 21, 12]] });
+      s.plateau(126, 9, 10, 8, 2.2); s.coins(128, 11, 6); s.food(131, 12, 'cake'); s.checkpoint(112, 14);
+      s.ox = 40;
       s.floor(110, 13, 6, 4); s.checkpoint(112, 14);
       s.floor(116, 5, 26, 15);
       s.wall(121, 9, 2, 2); s.wall(134, 9, 2, 2); s.wall(121, 14, 2, 2); s.wall(134, 14, 2, 2);
       s.target('c1', 119, 7, 'red', 7); s.target('c2', 138, 7, 'blue', 7);
       s.boss('mech');
+    },
+  },
+  // ───────────────────────── Bonus: Müllberg-Prüfung ─────────────────────────
+  {
+    name: 'Der große Müllberg', theme: 'junk', bonus: true, size: [84, 48], start: [5, 40], music: 'junk', quota: 150, litter: 330,
+    build(s) {
+      s.field(2, 2, 80, 44, { enemies: [['walker', 6], ['armor', 4], ['archer', 5], ['charger', 4], ['flyer', 5], ['kamikaze', 6], ['jumper', 4], ['sawer', 5], ['drake', 2]], spawners: 5, coins: 24, density: 0.7, avoid: [[68, 18, 14, 12], [12, 20, 22, 14]] });
+      s.sign(6, 38, 'Müllberg-Prüfung! Sammelt 150 Müll,\ndann öffnet sich das Portal in der Mitte rechts.\nEs wird nicht beim ersten Mal klappen …');
+      s.ice(6, 6, 16, 10); s.spikes(40, 22, 5, 2); s.spikes(26, 31, 2, 5); s.spikes(52, 38, 4, 2);
+      s.laser(46, 10, 8, 'h', 2.6, 0); s.laser(46, 14, 8, 'h', 2.6, 1.3);
+      s.conveyor(30, 38, 16, 3, 1, 110); s.conveyor(30, 41, 16, 3, -1, 110);
+      s.crusher(56, 8, 3.4, 0); s.crusher(58, 8, 3.4, 1.1); s.crusher(60, 8, 3.4, 2.2);
+      s.plateau(14, 22, 10, 8, 2.2); s.coins(16, 24, 6); s.food(19, 25, 'cake'); s.power(18, 28, 'wings');
+      s.pit(60, 34, 10, 8); s.floor(63, 37, 4, 2); s.food(64, 37, 'burger'); s.coins(63, 38, 4); s.power(65, 37, 'ball');
+      for (const [x, y] of [[7, 36], [9, 42], [12, 40], [14, 34], [40, 8], [76, 36]]) s.bin(x, y);
+      s.checkpoint(8, 38); s.checkpoint(40, 24); s.checkpoint(70, 14);
+      s.portal(74, 24);
     },
   },
   // ───────────────────────── Minispiele ─────────────────────────
@@ -239,4 +285,4 @@ const LEVELS = [
     },
   },
 ];
-const STORY_COUNT = LEVELS.filter(l => !l.mini).length;
+const STORY_COUNT = LEVELS.filter(l => !l.mini && !l.bonus).length;

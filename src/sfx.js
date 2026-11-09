@@ -77,41 +77,73 @@ const Sfx = (() => {
     talk: () => tone(240 + Math.random() * 160, 0.04, 'square', 0.04),
   };
 
-  // Musik: Basslinie + Arpeggio je Welt, ganz einfach
+  // ── Musik: pro Welt Tonart, Akkordfolge, Melodie (aus Motiven erzeugt), Bass und Schlagzeug ──
+  const SC = { pent: [0, 2, 4, 7, 9], mpent: [0, 3, 5, 7, 10], mixo: [0, 2, 4, 5, 7, 9, 10], hm: [0, 2, 3, 5, 7, 8, 11], major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10] };
   const SONGS = {
-    menu:    { bpm: 104, bass: [0, 0, 7, 7, 5, 5, 7, 7], arp: [0, 4, 7, 12], root: 55, wave: 'triangle', lead: 'square' },
-    alley:   { bpm: 118, bass: [0, 0, 5, 5, 7, 7, 3, 3], arp: [0, 3, 7, 10], root: 55, wave: 'triangle', lead: 'square' },
-    sewer:   { bpm: 96,  bass: [0, 0, 0, 3, 5, 5, 3, 3], arp: [0, 3, 6, 9],  root: 49, wave: 'sawtooth', lead: 'triangle' },
-    junk:    { bpm: 126, bass: [0, 7, 0, 7, 5, 12, 5, 12], arp: [0, 7, 12, 7], root: 52, wave: 'square', lead: 'square' },
-    factory: { bpm: 132, bass: [0, 0, 3, 0, 5, 5, 7, 6], arp: [0, 3, 7, 3],  root: 46, wave: 'sawtooth', lead: 'square' },
-    winter:  { bpm: 112, bass: [0, 0, 7, 7, 3, 3, 5, 5], arp: [0, 7, 12, 7],  root: 58, wave: 'triangle', lead: 'triangle' },
-    grave:   { bpm: 92,  bass: [0, 0, 1, 1, 0, 0, 6, 6], arp: [0, 3, 6, 3],  root: 44, wave: 'sawtooth', lead: 'triangle' },
-    boss:    { bpm: 150, bass: [0, 0, 1, 0, 0, 0, 3, 1], arp: [0, 1, 7, 6],  root: 41, wave: 'sawtooth', lead: 'square' },
+    menu:    { bpm: 118, root: 220, sc: 'major', ch: [0, 5, 3, 4], lead: 'square', bass: 'triangle', swing: 0.1, drums: 'pop', fun: 0.25 },
+    alley:   { bpm: 126, root: 196, sc: 'pent',  ch: [0, 3, 4, 3], lead: 'square', bass: 'triangle', swing: 0.14, drums: 'pop', fun: 0.3 },
+    sewer:   { bpm: 100, root: 165, sc: 'mpent', ch: [0, 0, 3, 4], lead: 'triangle', bass: 'sawtooth', swing: 0.2, drums: 'slow', fun: 0.35 },
+    junk:    { bpm: 118, root: 147, sc: 'mixo',  ch: [0, 4, 3, 4], lead: 'square', bass: 'square', swing: 0.18, drums: 'rock', fun: 0.3 },
+    factory: { bpm: 138, root: 131, sc: 'minor', ch: [0, 5, 3, 6], lead: 'sawtooth', bass: 'sawtooth', swing: 0.0, drums: 'drive', fun: 0.15 },
+    winter:  { bpm: 110, root: 262, sc: 'major', ch: [0, 4, 5, 3], lead: 'triangle', bass: 'triangle', swing: 0.08, drums: 'pop', fun: 0.2, bells: true },
+    grave:   { bpm: 96,  root: 139, sc: 'hm',    ch: [0, 3, 4, 0], lead: 'triangle', bass: 'sawtooth', swing: 0.0, drums: 'slow', fun: 0.2, spooky: true },
+    boss:    { bpm: 152, root: 110, sc: 'hm',    ch: [0, 5, 4, 3], lead: 'sawtooth', bass: 'sawtooth', swing: 0.0, drums: 'drive', fun: 0.1 },
   };
-  const hz = (root, semis) => root * Math.pow(2, semis / 12);
-
-  function tick() {
-    if (!song) return;
-    const s = SONGS[song];
-    const b = s.bass[Math.floor(step / 2) % s.bass.length];
-    if (step % 2 === 0) tone(hz(s.root, b), 0.26, s.wave, 0.1);
-    const a = s.arp[step % s.arp.length];
-    tone(hz(s.root * 4, b + a), 0.12, s.lead, 0.03);
-    if (step % 4 === 2) noise(0.04, 0.03, 5000);
-    step++;
+  const BARS = 8, SPB = 8;   // 8 Takte à 8 Achtel
+  const cache = {};
+  function degHz(s, deg, oct = 0) { const sc = SC[s.sc], n = sc.length, o = Math.floor(deg / n), d = ((deg % n) + n) % n; return s.root * Math.pow(2, (sc[d] + 12 * (o + oct)) / 12); }
+  function build(name) {
+    if (cache[name]) return cache[name];
+    const s = SONGS[name]; let q = 0; for (const c of name) q = (q * 31 + c.charCodeAt(0)) >>> 0;
+    const rnd = () => (q = (q * 1664525 + 1013904223) >>> 0) / 4294967296;
+    const motifs = []; for (let m = 0; m < 3; m++) { const rh = [], nt = []; let deg = Math.floor(rnd() * 4); for (let i = 0; i < SPB; i++) { const on = (i % 2 === 0) ? rnd() < 0.75 : rnd() < 0.4; rh.push(on); deg += Math.floor(rnd() * 5) - 2; deg = Math.max(-2, Math.min(7, deg)); nt.push(deg); } motifs.push({ rh, nt }); }
+    const steps = [];
+    for (let bar = 0; bar < BARS; bar++) {
+      const chord = s.ch[bar % s.ch.length], m = motifs[[0, 1, 0, 2, 0, 1, 0, 2][bar]], fill = bar % 4 === 3;
+      for (let i = 0; i < SPB; i++) {
+        const st = {};
+        st.k = (i === 0 || i === 4 || (s.drums === 'drive' && (i === 2 || i === 6)) || (s.drums === 'rock' && i === 3 && bar % 2));
+        st.s = (i === 2 || i === 6) && s.drums !== 'drive' || (s.drums === 'drive' && (i === 2 || i === 6));
+        if (s.drums === 'slow') { st.k = i === 0 || i === 5; st.s = i === 4; }
+        st.h = (s.drums === 'drive' || s.drums === 'pop') ? true : i % 2 === 1;
+        if (fill && i >= 6) st.s = true;
+        if (i === 0 || i === 3 || i === 4 || i === 7) st.bass = degHz(s, chord + (i === 3 || i === 7 ? 4 : 0), -2);
+        if (i % 2 === 1 && !s.spooky) st.chord = [degHz(s, chord, 0), degHz(s, chord + 2, 0), degHz(s, chord + 4, 0)];
+        if (s.spooky && i === 0) st.chord = [degHz(s, chord, 0), degHz(s, chord + 2, 0), degHz(s, chord + 4, 0)];
+        if (m.rh[i]) { st.lead = degHz(s, m.nt[i] + chord, 1); st.fun = rnd() < s.fun * 0.5; st.len = (i % 2 === 0 && !m.rh[i + 1]) ? 2 : 1; }
+        steps.push(st);
+      }
+    }
+    return (cache[name] = { s, steps });
+  }
+  let sched = null, stepIdx = 0, songName = null;
+  function playStep() {
+    if (!songName) return;
+    const { s, steps } = build(songName), st = steps[stepIdx % steps.length], d = 60 / s.bpm / 2, sw = (stepIdx % 2) ? s.swing * d : 0;
+    const w = sw;
+    if (st.k) { tone(120, 0.12, 'sine', 0.22, -80, w); noise(0.05, 0.05, 150, w); }
+    if (st.s) noise(0.11, 0.1, 1800, w);
+    if (st.h) noise(0.03, 0.03, 7000, w);
+    if (st.bass) tone(st.bass, d * 1.6, s.bass, 0.11, 0, w);
+    if (st.chord) st.chord.forEach(c => tone(c, d * 0.7, 'square', 0.025, 0, w));
+    if (st.lead) {
+      tone(st.lead, d * 0.95 * (st.len || 1), s.lead, 0.07, st.fun ? 260 : 0, w);
+      if (s.bells && stepIdx % 4 === 0) tone(st.lead * 2, 0.5, 'sine', 0.04, 0, w);
+      if (s.spooky && stepIdx % 8 === 0) tone(st.lead * 0.5, 0.9, 'sine', 0.05, 0, w);
+    }
+    if (st.fun && Math.random() < 0.5) tone(st.lead * 1.5, 0.08, 'square', 0.03, -200, w + d * 0.5);
+    stepIdx++;
   }
 
   return {
     play(name) { try { fx[name] && fx[name](); } catch (e) {} },
     music(name) {
-      if (song === name) return;
-      song = name; step = 0;
-      if (timer) clearInterval(timer);
-      timer = null;
-      if (!name) return;
+      if (songName === name) return;
+      songName = name; stepIdx = 0;
+      if (sched) clearInterval(sched); sched = null;
+      if (!name || !SONGS[name]) { songName = null; return; }
       ctx();
-      const ms = 60000 / SONGS[name].bpm / 2;
-      timer = setInterval(tick, ms);
+      sched = setInterval(playStep, 60000 / SONGS[name].bpm / 2);
     },
     toggleMute() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.55; return muted; },
     isMuted() { return muted; },

@@ -200,12 +200,12 @@ class SelectScene extends StageScene {
     this.modeT = UI.text(this, 640, 124, '', 30).setOrigin(0.5);
     this.levels = LEVELS.map((l, i) => ({ l, i })).filter(o => !o.l.mini);
     this.cards = this.levels.map(({ l: lv }, i) => {
-      const col = i % 3, row = Math.floor(i / 3), x = 130 + col * 370, y = 170 + row * 255, w = 340, h = 230;
+      const col = i % 4, row = Math.floor(i / 4), x = 50 + col * 305, y = 175 + row * 255, w = 285, h = 230;
       const g = this.add.graphics(), cont = { x, y, w, h, g };
-      cont.num = UI.text(this, x + 40, y + 34, String(i + 1), 64, { color: '#ffe15a' }).setOrigin(0.5);
-      cont.name = UI.text(this, x + w / 2 + 22, y + 22, lv.name, 30, { wordWrap: { width: w - 110 }, align: 'center' }).setOrigin(0.5, 0);
-      cont.boss = UI.text(this, x + w / 2, y + h - 36, 'Boss: ' + BOSS[lv.boss].title.split('–')[0].trim(), 22, { color: '#ffe15a' }).setOrigin(0.5);
-      cont.th = UI.text(this, x + w / 2, y + 120, THEMES[lv.theme] ? THEMES[lv.theme].name : '', 26, { color: '#ffffffcc' }).setOrigin(0.5);
+      cont.num = UI.text(this, x + 38, y + 34, lv.bonus ? '★' : String(i + 1), 60, { color: '#ffe15a' }).setOrigin(0.5);
+      cont.name = UI.text(this, x + w / 2 + 20, y + 22, lv.name, 27, { wordWrap: { width: w - 100 }, align: 'center' }).setOrigin(0.5, 0);
+      cont.boss = UI.text(this, x + w / 2, y + h - 36, lv.boss ? 'Boss: ' + BOSS[lv.boss].title.split('–')[0].trim() : 'Bonus: ' + lv.quota + ' Müll sammeln', 20, { color: '#ffe15a' }).setOrigin(0.5);
+      cont.th = UI.text(this, x + w / 2, y + 120, THEMES[lv.theme] ? THEMES[lv.theme].name : '', 24, { color: '#ffffffcc' }).setOrigin(0.5);
       const hit = this.add.rectangle(x + w / 2, y + h / 2, w, h, 0, 0).setInteractive({ useHandCursor: true });
       hit.on('pointerover', () => { this.sel = i; this.refresh(); }); hit.on('pointerdown', () => this.play());
       return cont;
@@ -229,8 +229,8 @@ class SelectScene extends StageScene {
     const n = this.nav.poll(), N = this.cards.length;
     if (n.left) { this.sel = (this.sel + N - 1) % N; Sfx.play('select'); this.refresh(); }
     if (n.right) { this.sel = (this.sel + 1) % N; Sfx.play('select'); this.refresh(); }
-    if (n.up) { this.sel = (this.sel + N - 3) % N; Sfx.play('select'); this.refresh(); }
-    if (n.down) { this.sel = (this.sel + 3) % N; Sfx.play('select'); this.refresh(); }
+    if (n.up) { this.sel = (this.sel + N - 4) % N; Sfx.play('select'); this.refresh(); }
+    if (n.down) { this.sel = (this.sel + 4) % N; Sfx.play('select'); this.refresh(); }
     const q = this.kQ.isDown || this.kE.isDown; if (q && !this.qd) { this.kids = !this.kids; Sfx.play('select'); this.refresh(); } this.qd = q;
     if (n.ok) this.play();
     if (n.back) this.scene.start('Menu');
