@@ -605,7 +605,7 @@ class LevelScene extends Phaser.Scene {
     const o = h.holding; if (!o) return;
     h.holding = null; o.holder = null; o.state = 'normal'; o.body.enable = true; o.setVisible(true); o.vis.setVisible(true); o.noz.setVisible(true);
     o.body.reset(h.x + h.aim.x * 24, h.y + h.aim.y * 24);
-    o.noSwallow = this.time.now + 700; o.inv = this.time.now + 600;
+    o.noSwallow = this.time.now + (this.kids ? 5000 : 700); o.inv = this.time.now + 600;
     if (launch) {
       o.fly = { t: 0, vx: h.aim.x * LV, vy: h.aim.y * LV }; o.lockUntil = this.time.now + FLY_T * 1000;
       o.body.setVelocity(o.fly.vx, o.fly.vy); this.tetherOff = this.time.now + FLY_T * 1000 + 600;
