@@ -11,9 +11,10 @@ class HudScene extends Phaser.Scene {
     this.ammoT = [];
     for (let i = 0; i < 2; i++) {
       const x = i === 0 ? 34 : W - 190, y = H - 50;
-      this.add.image(x + 22, y, i === 0 ? 'knox' : 'zippy').setScale(0.3);
+      this.add.image(x + 26, y - 4, 'port_' + Cfg.players[i].color).setScale(0.26);
       this.add.image(x + 70, y + 2, 'trash0').setScale(0.9);
       this.ammoT.push(this.add.text(x + 92, y, '×3', st(30)).setOrigin(0, 0.5));
+      this.add.text(x + 26, y - 46, Cfg.players[i].name, st(20)).setOrigin(0.5);
     }
     this.bossG = this.add.graphics();
     this.bossName = this.add.text(W / 2, 62, '', st(24)).setOrigin(0.5, 0).setVisible(false);

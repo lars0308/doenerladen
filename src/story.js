@@ -1,10 +1,11 @@
 const FONT = '"Lilita One", "Comic Sans MS", "Trebuchet MS", Verdana, sans-serif';
 
+const pc = i => PLAYER_COLORS.find(c => c.id === Cfg.players[i].color) || PLAYER_COLORS[2];
 const WHO = {
-  knox:  { name: 'Knox',  color: '#3fa7ff', tex: 'pt_knox',  hero: true },
-  zippy: { name: 'Zippy', color: '#ff9a2e', tex: 'pt_zippy', hero: true },
-  chief: { name: 'Bürgermeisterin Kehrer', color: '#7fd1ff', tex: 'pt_chief' },
-  unrat: { name: 'Dr. Unrat', color: '#ff6a6a', tex: 'pt_unrat' },
+  knox:  { get name() { return Cfg.players[0].name; }, get color() { return pc(0).css; }, get tex() { return 'port_' + Cfg.players[0].color; }, hero: true },
+  zippy: { get name() { return Cfg.players[1].name; }, get color() { return pc(1).css; }, get tex() { return 'port_' + Cfg.players[1].color; }, hero: true },
+  chief: { name: 'Bürgermeisterin Kehrer', color: '#7fd1ff', tex: 'port_chief' },
+  unrat: { name: 'Dr. Unrat', color: '#ff6a6a', tex: 'port_unrat' },
 };
 
 const STORY = {
@@ -23,7 +24,7 @@ const STORY = {
     { who: 'knox',  text: 'Die Spur führt in die Kanalisation. Natürlich. Es muss immer die Kanalisation sein.' },
   ] },
   pre1: { theme: 'sewer', lines: [
-    { who: 'zippy', text: 'Hier riecht es wie in deinen Sportschuhen, Knox.' },
+    { who: 'zippy', text: 'Hier riecht es wie in deinen Sportschuhen, {p1}.' },
     { who: 'knox',  text: 'Meine Sportschuhe sind ein Naturprodukt. Bleib dicht bei mir – und denk dran: Die Kette hält nicht ewig.' },
   ] },
   post1: { theme: 'sewer', lines: [
@@ -93,7 +94,7 @@ class StoryScene extends Phaser.Scene {
   }
   show() {
     const ln = this.lines[this.i], who = WHO[ln.who];
-    this.full = ln.text; this.shown = 0; this.typing = true;
+    this.full = ln.text.replace(/\{p1\}/g, Cfg.players[0].name).replace(/\{p2\}/g, Cfg.players[1].name); this.shown = 0; this.typing = true;
     if (who.hero) { this.slots.left = ln.who; } else { this.slots.right = ln.who; }
     const setP = (img, key, active) => {
       if (!key) { img.setVisible(false); return; }

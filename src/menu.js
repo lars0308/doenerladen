@@ -1,7 +1,7 @@
 class BootScene extends Phaser.Scene {
   constructor() { super('Boot'); }
   create() {
-    makeArt(this); makeArt2(this); makeRobotTextures(this);
+    makeArt(this); makeArt2(this); makePortraits(this);
     this.scene.start('Menu');
   }
 }

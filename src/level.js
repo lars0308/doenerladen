@@ -4,7 +4,9 @@ const SPEED = 235, LV = 600, FLY_T = 0.8, HOP_T = 0.46, HOP_V = 400;
 const ENEMY = {
   walker:  { tex: 'e_walker',  fw: 30, fh: 18, hp: 1, speed: 78,  stomp: true,  chase: 270 },
   armor:   { tex: 'e_armor',   fw: 34, fh: 20, hp: 3, speed: 58,  stomp: false, chase: 300 },
-  flyer:   { tex: 'e_flyer',   fw: 28, fh: 16, hp: 1, speed: 100, stomp: true,  fly: true, chase: 380 },
+  flyer:   { tex: 'e_flyer',   fw: 28, fh: 16, hp: 1, speed: 90,  stomp: true,  fly: true, chase: 380, bomb: true },
+  archer:  { tex: 'e_walker',  fw: 30, fh: 18, hp: 2, speed: 70,  stomp: true,  chase: 560, ranged: true },
+  drake:   { tex: 'e_flyer',   fw: 34, fh: 20, hp: 4, speed: 95,  stomp: false, fly: true, chase: 640, shooter: true },
   turret:  { tex: 'e_turret',  fw: 34, fh: 20, hp: 2, speed: 0,   stomp: false, still: true },
   charger: { tex: 'e_charger', fw: 44, fh: 18, hp: 2, speed: 70,  stomp: true,  charge: true, chase: 380 },
 };
@@ -25,7 +27,7 @@ class LevelScene extends Phaser.Scene {
     this.t0 = this.time.now; this.coinCount = 0; this.paused = false; this.done = false;
     this.coinsA = []; this.pickups = []; this.crateList = []; this.enemyList = []; this.groups = {};
     this.gates = []; this.bridges = []; this.targets = []; this.plates = []; this.spikesA = []; this.moversA = [];
-    this.crushers = []; this.lasers = []; this.convs = []; this.cps = []; this.signs = [];
+    this.crushers = []; this.lasers = []; this.convs = []; this.cps = []; this.signs = []; this.zones = []; this.rings = []; this.warns = [];
     this.bossObj = null; this.bossStarted = false; this.exitOpen = false; this.lockGate = null;
     this.hearts = 5; this.maxHearts = 5; this.pitSet = new Set(); this.bridged = new Set();
     this.grid = Array.from({ length: this.gh }, () => new Array(this.gw).fill(0));
@@ -267,11 +269,29 @@ class LevelScene extends Phaser.Scene {
       this.coinsA.push(c);
     }
   }
-  eshot(x, y, vx, vy, tex = 'goo') {
+  eshot(x, y, vx, vy, kind = 'goo') {
     const s = this.physics.add.sprite(x, y, 'dotp').setAlpha(0).setDepth(1.6); this.eshotG.add(s);
     s.body.setSize(14, 14); s.body.setVelocity(vx, vy);
-    s.vis = this.add.image(x, y - 18, tex).setDepth(2900); s.born = this.time.now; s.z = 18;
+    s.vis = this.add.image(x, y - 18, 'goo').setVisible(false); s.born = this.time.now; s.z = 18; s.kind = kind;
     return s;
+  }
+  // Gefahrenzonen am Boden (Bomben, Pfützen) und Schockwellen – von Gegnern und Bossen genutzt
+  addZone(x, y, r, warn, life, type) { this.zones.push({ x, y, r, t0: this.time.now, warn, life, type, boom: false }); }
+  addRing(x, y, max, v) { this.rings.push({ x, y, r: 30, max, v, hit: new Set() }); }
+  updateZones(time, dt) {
+    for (const z of this.zones.slice()) {
+      const age = time - z.t0;
+      if (age < z.warn) continue;
+      if (age < z.warn + z.life) {
+        if (z.type === 'bomb' && !z.boom) { z.boom = true; this.shake(150, 0.01); Sfx.play('boom'); this.burst(z.x, z.y, 'puff', 10, z.r, 0xffa050); this.burst(z.x, z.y, 'star', 4, z.r); }
+        for (const p of this.p) if (p.state === 'normal' && p.z < 14 && Math.hypot(p.x - z.x, p.y - z.y) < z.r) this.hurtPlayer(p, z.x, z.y);
+      } else this.zones.splice(this.zones.indexOf(z), 1);
+    }
+    for (const r of this.rings.slice()) {
+      r.r += r.v * dt;
+      for (const p of this.p) if (p.state === 'normal' && p.z < 14 && !r.hit.has(p) && Math.abs(Math.hypot(p.x - r.x, p.y - r.y) - r.r) < 20) { r.hit.add(p); this.hurtPlayer(p, r.x, r.y); }
+      if (r.r > r.max) this.rings.splice(this.rings.indexOf(r), 1);
+    }
   }
   nearest(x, y) {
     let best = null, bd = 1e9;
@@ -287,6 +307,26 @@ class LevelScene extends Phaser.Scene {
       if (c.fly) e.z = 34 + Math.sin(time / 300 + e.ph) * 6;
       let sp = c.speed * km, dirx = 0, diry = 0;
       if (time < e.kb) { this.syncVis(e); continue; }
+      if (c.bomb) {   // Fledermaus: wirft Bomben (mit Warnkreis) auf euch
+        e.cool -= dt * 1000;
+        if (e.cool <= 0 && dist < 480) { e.cool = this.kids ? 4600 : 3200; this.addZone(p.x + Phaser.Math.Between(-30, 30), p.y + Phaser.Math.Between(-30, 30), 58, this.kids ? 1500 : 1100, 260, 'bomb'); Sfx.play('shoot'); }
+      }
+      if (c.ranged || c.shooter) {   // Bogenschütze / Drache: halten Abstand und schießen
+        e.cool -= dt * 1000;
+        const want = c.shooter ? 300 : 340, tx = -dy / dist, ty = dx / dist;
+        let ax = 0, ay = 0;
+        if (dist < want - 60) { ax = -dx / dist; ay = -dy / dist; } else if (dist > want + 90) { ax = dx / dist; ay = dy / dist; }
+        ax += tx * 0.55 * Math.sin(time / 1100 + e.ph); ay += ty * 0.55 * Math.sin(time / 1100 + e.ph);
+        b.setVelocity(ax * sp * 0.9, ay * sp * 0.9);
+        if (e.cool <= 0 && dist < c.chase) {
+          e.cool = this.kids ? 3600 : (c.shooter ? 2600 : 2100);
+          if (c.shooter) { const a0 = Math.atan2(dy, dx); for (const d of [-0.25, 0, 0.25]) this.eshot(e.x, e.y, Math.cos(a0 + d) * 250, Math.sin(a0 + d) * 250, 'fire'); }
+          else this.eshot(e.x, e.y, dx / dist * 340, dy / dist * 340, 'arrow');
+          Sfx.play('shoot'); e.st = 'wind'; e.stT = 250;
+        }
+        if (e.st === 'wind' && (e.stT -= dt * 1000) <= 0) e.st = 'wander';
+        this.syncVis(e); continue;
+      }
       if (c.still) {
         e.cool -= dt * 1000;
         if (e.cool <= 0 && dist < 600) { e.cool = this.kids ? 3600 : 2300; this.eshot(e.x, e.y, dx / dist * 230, dy / dist * 230); Sfx.play('shoot'); }
@@ -636,12 +676,13 @@ class LevelScene extends Phaser.Scene {
       return;
     }
     if (n.back || this.p.some(p => p.in.startEdge)) { this.setPause(true); return; }
-    if (this.bossObj) this.bossObj.warns = [];
+    this.warns = [];
     this.updatePuzzles(time, dt);
     for (const p of this.p) this.updatePlayer(p, dt, time);
     this.tether();
     this.updateEnemies(time, dt);
     if (this.bossObj) this.bossObj.update(dt, time);
+    this.updateZones(time, dt);
     this.updateShots(time);
     this.hazards(time);
     this.touches(time);
