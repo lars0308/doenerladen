@@ -591,6 +591,7 @@ class View3D {
     this.pooled(this.bombPool, () => a3clone('p:bomb', 1.5), bombs, (m, z) => { const f = (time - z.t0) / z.warn; m.position.set(z.x / T, 0.3 + (1 - f) * (1 - f) * 7, z.y / T); m.rotation.y = time / 200; });
   }
   drawChain(time) {
+    if (this.s.kids) { for (const m of this.chain) m.visible = false; return; }
     const s = this.s, [a, b] = s.p, ch = this.chain; const ok = a.state === 'normal' && b.state === 'normal';
     if (!ok) { ch.forEach(m => m.visible = false); return; }
     const dx = (b.x - a.x) / T, dz = (b.y - a.y) / T, d = Math.hypot(dx, dz) || 1, n = Math.min(ch.length - 1, Math.max(2, Math.floor(d / 0.28)));

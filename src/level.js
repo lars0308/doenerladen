@@ -923,7 +923,7 @@ class LevelScene extends Phaser.Scene {
   tether() {
     const [a, b] = this.p, time = this.time.now, g = this.chainG; g.clear();
     if (a.state !== 'normal' || b.state !== 'normal') return;
-    const L = this.kids ? 540 : 440;
+    const L = this.kids ? 900 : 440;   // Kindermodus: keine sichtbare Kette, nur eine sehr weite unsichtbare Grenze
     const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
     if (time > (this.tetherOff || 0) && d > L && !a.fly && !b.fly) {
       const nx = dx / d, ny = dy / d;
@@ -931,6 +931,7 @@ class LevelScene extends Phaser.Scene {
       const vb = -(b.body.velocity.x * nx + b.body.velocity.y * ny); if (vb < 0) b.body.setVelocity(b.body.velocity.x + vb * nx, b.body.velocity.y + vb * ny);
       if (d > L + 120) { a.x += nx * 3; a.y += ny * 3; b.x -= nx * 3; b.y -= ny * 3; }
     }
+    if (this.kids) return;
     const n = Math.max(2, Math.floor(d / 14)), slack = Math.max(0, L - d) * 0.14;
     const px = -dy / d, py = dx / d, x1 = a.x, y1 = a.y - 8, x2 = b.x, y2 = b.y - 8;
     for (let i = 0; i <= n; i++) {
