@@ -54,8 +54,8 @@ class LevelScene extends Phaser.Scene {
 
     def.build(this); this.ox = 0;
     this.finalize();
-    this.autoLitter(def.mini ? 0 : (def.litter !== undefined ? def.litter : Math.min(430, Math.round(this.floorCount / 5))));
-    this.autoPlants(def.mini ? 0 : Math.min(300, Math.round(this.floorCount / 7)));
+    this.autoLitter(def.mini ? 0 : (def.litter !== undefined ? def.litter : Math.min(240, Math.round(this.floorCount / 9))));
+    this.autoPlants(def.mini ? 0 : Math.min(80, Math.round(this.floorCount / 28)));
     this.autoFood(def.mini ? 0 : Math.max(2, Math.round(this.floorCount / 120)));
     this.autoPower(def.mini ? 0 : Math.max(3, Math.round(this.floorCount / 150)));
     this.trashTotal = this.pickups.length; this.time.delayedCall(200, () => this.snap());
