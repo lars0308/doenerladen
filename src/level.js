@@ -585,6 +585,7 @@ class LevelScene extends Phaser.Scene {
     p.body.reset(x, y); p.inv = this.time.now + 1500; this.syncVis(p);
   }
   startFall(p) {
+    if (p.holding) { const o = p.holding; this.release(p, false); const sp = p.lastSafe || { x: p.x, y: p.y }; o.body.reset(sp.x + 30, sp.y); o.body.setVelocity(0, 0); o.inv = this.time.now + 1200; }
     p.state = 'falling'; p.fallT = 0.6; p.body.setVelocity(0, 0); p.hop = null; p.fly = null; p.z = 0; Sfx.play('hurt');
     p.noz.setVisible(false);
     this.tweens.add({ targets: p.vis, scale: 0.1, angle: 360, duration: 600 });
@@ -964,6 +965,7 @@ class LevelScene extends Phaser.Scene {
   update(time, delta) {
     const dt = Math.min(delta, 50) / 1000;
     const n = this.nav.poll();
+    for (const q of this.p) if (q.state === 'held' && (!q.holder || q.holder.state !== 'normal' || q.holder.holding !== q)) { if (q.holder) q.holder.holding = null; const sp = q.lastSafe || { x: q.x, y: q.y }; this.placeAt(q, sp.x, sp.y); }   // Sicherung: niemand bleibt verschluckt
     if (!this.done && Math.floor(time / 500) !== this._gc) { this._gc = Math.floor(time / 500); for (const t of this.pickups.slice()) if (t.gen && time - t.born > 12000) { t.destroy(); this.pickups = this.pickups.filter(q => q !== t); } }
     for (const p of this.p) p.in = p.ctrl.read();
     if (this.done) { if (n.ok || this.p.some(p => p.in.jumpEdge)) this.next(); return; }

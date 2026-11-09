@@ -8,31 +8,37 @@ const rules = (g, e, w) => [
 // Pro Welt: Boden-/Wandmodell, Umfärbung der Paletten, Himmel, Deko
 const TH3 = {
   alley: {
+    pathC: [0.1, 0.22, 0.6], accC: [0.3, 0.6, 0.5], pathE: [0.08, 0.35, 0.45],
     floor: 'p:block-grass', wall: 'p:block-snow', fr: null, wr: rules(null, null, [0.09, 0.55, 0.86]),
     sky: [0x1f7cff, 0xbfe3ff], fog: 0xbfe3ff, liquid: null, cliff: 0xd9895e,
     ground: ['p:stones', 'p:rocks'], wallTop: ['p:tree', 'p:tree', 'p:hedge', 'p:fence-straight'], island: 'p:tree', big: ['i:building-d', 'i:building-h'],
   },
   sewer: {
+    pathC: [0.52, 0.22, 0.3], accC: [0.38, 0.6, 0.45], pathE: [0.5, 0.25, 0.22],
     floor: 'p:block-grass', wall: 'p:block-grass', fr: rules([0.47, 0.5, 0.5], [0.4, 0.35, 0.3]), wr: rules([0.5, 0.35, 0.3], [0.42, 0.3, 0.2]),
     sky: [0x0f3b3b, 0x3aa384], fog: 0x2a7a64, liquid: 0x8cf06a, cliff: 0x2e6b60,
     ground: ['p:stones', 'p:rocks', 'f:fish-bones', 'f:banana'], wallTop: ['p:pipe', 'p:mushrooms', 'p:rocks', 'p:barrel'], island: 'p:mushrooms', big: [],
   },
   junk: {
+    pathC: [0.09, 0.4, 0.5], accC: [0.12, 0.62, 0.62], pathE: [0.07, 0.5, 0.35],
     floor: 'p:block-grass', wall: 'p:block-grass', fr: rules([0.12, 0.7, 0.62], [0.07, 0.55, 0.4]), wr: rules([0.08, 0.5, 0.48], [0.05, 0.5, 0.28]),
     sky: [0xe9984a, 0xffe6a8], fog: 0xf6cd8a, liquid: 0x3a2a1a, cliff: 0x8a5a2a,
     ground: ['p:rocks', 'p:stones', 'f:bag-flat', 'f:can-open', 'f:soda-can-crushed', 'f:can-small'], wallTop: ['i:shipping-container-a', 'i:shipping-container-b', 'i:shipping-container-c', 'p:barrel', 'i:detail-tank'], island: 'i:chimney-medium', big: ['i:building-j', 'i:water-tower'],
   },
   factory: {
+    pathC: [0.62, 0.15, 0.4], accC: [0.55, 0.45, 0.55], pathE: [0.62, 0.2, 0.25],
     floor: 'p:block-grass', wall: 'p:block-grass', fr: rules([0.6, 0.3, 0.62], [0.62, 0.35, 0.34]), wr: rules([0.13, 0.95, 0.55], [0.62, 0.4, 0.24]),
     sky: [0x121a3a, 0x4a5fa8], fog: 0x34437a, liquid: 0xff7a22, cliff: 0x2b3a68,
     ground: ['p:stones', 'f:soda-can-crushed', 'f:can-small'], wallTop: ['i:chimney-medium', 'i:chimney-large', 'i:detail-tank', 'p:spike-block', 'p:saw'], island: 'i:chimney-large', big: ['i:building-m', 'i:building-p', 'i:windmill'],
   },
   winter: {
+    pathC: [0.56, 0.32, 0.82], accC: [0.6, 0.15, 0.97], pathE: [0.58, 0.3, 0.6],
     floor: 'p:block-snow', wall: 'p:block-snow', fr: null, wr: rules(null, [0.58, 0.35, 0.55], [0.58, 0.18, 0.93]),
     sky: [0x7fb8f0, 0xf2f9ff], fog: 0xeaf4ff, liquid: null, cliff: 0xb8cfe8,
     ground: ['p:stones', 'p:rocks'], wallTop: ['p:tree-pine-snow', 'p:tree-pine-snow', 'p:tree-snow', 'p:fence-low-straight'], island: 'p:tree-pine-snow', big: [],
   },
   grave: {
+    pathC: [0.08, 0.2, 0.3], accC: [0.76, 0.3, 0.5], pathE: [0.07, 0.25, 0.2],
     floor: 'p:block-grass', wall: 'p:block-grass', fr: rules([0.76, 0.28, 0.4], [0.72, 0.18, 0.22]), wr: rules([0.74, 0.18, 0.26], [0.7, 0.15, 0.15]),
     sky: [0x1a1034, 0x6a4aa0], fog: 0x3a2a66, liquid: null, cliff: 0x4a3a66,
     ground: ['g:gravestone-round', 'g:gravestone-cross', 'g:rocks', 'g:debris', 'g:urn-round'], wallTop: ['g:pine-crooked', 'g:iron-fence', 'g:lightpost-single', 'g:crypt-small', 'g:pine'], island: 'g:crypt-small', big: [],
@@ -182,7 +188,21 @@ class View3D {
     }
     // Boden & Wände aus Kenney-Blöcken
     const fm = this.themed(th.floor, th.fr), wm = this.themed(th.wall, th.wr), SC = 1.045;
-    this.inst(th.floor, floors.map(([x, y, e]) => ({ x: x + 0.5, y: -1 + e, z: y + 0.5, s: SC })), fm);
+    // Abwechslungsreicher Boden: Pfade (leicht vertieft), Flecken (leicht erhöht) und Helligkeits-Sprenkel
+    const hash = (x, y, k) => { let h = (x * 374761393 + y * 668265263 + k * 1442695041) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967295; };
+    const sm = t => t * t * (3 - 2 * t);
+    const vn = (x, y, sc2, k) => { const fx = x / sc2, fy = y / sc2, ix = Math.floor(fx), iy = Math.floor(fy), tx = sm(fx - ix), ty = sm(fy - iy); const a = hash(ix, iy, k), b = hash(ix + 1, iy, k), c = hash(ix, iy + 1, k), d = hash(ix + 1, iy + 1, k); const t1 = a + (b - a) * tx, t2 = c + (d - c) * tx; return t1 + (t2 - t1) * ty; };
+    const L = { base: [], base2: [], path: [], acc: [] };
+    floors.forEach(([x, y, e]) => {
+      const p = vn(x, y, 7, 1) * 0.7 + vn(x, y, 3, 5) * 0.3, q = vn(x, y, 4, 2), o = { x: x + 0.5, y: -1 + e, z: y + 0.5, s: SC };
+      if (p > 0.66) { o.y -= 0.07; o.s = SC * 0.985; L.path.push(o); }
+      else if (q > 0.72) { o.y += 0.06; L.acc.push(o); }
+      else (hash(x, y, 9) > 0.55 ? L.base2 : L.base).push(o);
+    });
+    const bump = rs => rs.map(r => ({ test: r.test, to: (h, s2, l) => { const o2 = r.to(h, s2, l); return [o2[0], o2[1], Math.min(0.92, o2[2] * 1.1)]; } }));
+    const m2 = this.themed(th.floor, bump(th.fr || [{ test: isGreen, to: (h, s2, l) => [h, s2, l] }]));
+    const mp = this.themed(th.floor, rules(th.pathC, th.pathE, null)), ma = this.themed(th.floor, rules(th.accC, th.pathE, null));
+    this.inst(th.floor, L.base, fm); this.inst(th.floor, L.base2, m2); this.inst(th.floor, L.path, mp); this.inst(th.floor, L.acc, ma);
     this.inst(th.wall, walls.map(([x, y, e]) => ({ x: x + 0.5, y: e, z: y + 0.5, sx: SC, sy: 1.25, sz: SC })), wm);
     if (cols.length) { const cm = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: th.cliff }), cols.length), d = new THREE.Object3D(); cols.forEach((o, i) => { d.position.set(o.x, o.y, o.z); d.scale.set(o.sx, o.sy, o.sz); d.updateMatrix(); cm.setMatrixAt(i, d.matrix); }); cm.instanceMatrix.needsUpdate = true; sc.add(cm); }
     // Hindernisse mit Deko-Modell (Bäume, Felsen, Häuser …)
