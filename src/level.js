@@ -364,7 +364,7 @@ class LevelScene extends Phaser.Scene {
     this.burst(s.x, s.y - 14, 'puff', 5, 70, tint || 0xffffff);
     // eigener Müll-Schuss: bleibt liegen und ist noch max. 2x aufsaugbar, danach weg
     if (s.owner !== undefined && !this.def.mini && (s.gen || 0) < 2 && s.vis && !this.wallPx(s.x, s.y) && !this.pitAt(s.x, s.y) && this.at(Math.floor(s.x / T), Math.floor(s.y / T)) === 1) {
-      const t = this.add.image(s.x, s.y, s.vis.texture.key).setDepth(s.y); t.gen = (s.gen || 0) + 1; this.pickups.push(t);
+      const t = this.add.image(s.x, s.y, s.vis.texture.key).setDepth(s.y); t.gen = (s.gen || 0) + 1; t.born = this.time.now; this.pickups.push(t);
     }
     this.killActor(s);
   }
@@ -964,6 +964,7 @@ class LevelScene extends Phaser.Scene {
   update(time, delta) {
     const dt = Math.min(delta, 50) / 1000;
     const n = this.nav.poll();
+    if (!this.done && Math.floor(time / 500) !== this._gc) { this._gc = Math.floor(time / 500); for (const t of this.pickups.slice()) if (t.gen && time - t.born > 12000) { t.destroy(); this.pickups = this.pickups.filter(q => q !== t); } }
     for (const p of this.p) p.in = p.ctrl.read();
     if (this.done) { if (n.ok || this.p.some(p => p.in.jumpEdge)) this.next(); return; }
     if (this.paused) {

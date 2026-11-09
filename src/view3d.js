@@ -534,7 +534,7 @@ class View3D {
     sync(s.pickups, o => (o.model ? a3clone(o.model, o.model[0] === 'g' ? 1.3 : 1.5) : this.tm(this.foodFor(o.texture.key, o.x, o.y), 1.5)), (o, t) => 0.05 + Math.abs(Math.sin(t / 400 + o.x)) * 0.12);
     for (const c of s.coinsA) { const m = this.map.get(c); if (m) m.o.rotation.y = time / 300 + c.x; }
     for (const t of s.pickups) { const m = this.map.get(t); if (m) m.o.rotation.y = time / 500; }
-    for (const [k, m] of this.map) if (!k.type && !seen.has(k)) { sc.remove(m.o); this.map.delete(k); }
+    for (const [k, m] of this.map) if (m.o && !k.cfg && !seen.has(k)) { sc.remove(m.o); this.map.delete(k); }
     for (const sp of s.springsA) { const k = Math.max(0, 1 - (time - sp.t0) / 300); sp.m3.scale.set(1.7, 1.7 * (1 - 0.4 * k) + 0.4 * Math.sin(time / 40) * k, 1.7); }
     for (const f of s.cps) if (f.hit && !f.done) { f.done = true; f.m3.traverse(o => { if (o.isMesh) { cloneMats(o); eachMat(o, m => { m.emissive = new THREE.Color(0x22aa44); }); } }); }
     for (const t of s.targets) { const on = t.isOn, col = t.m3.userData.col; t.rings[0].material = this.M(on ? 0xffffff : 0xdddddd, { emissive: on ? col : 0 }); t.rings[1].material = this.M(on ? col : 0x8a8a98, { emissive: on ? col : 0, emissiveIntensity: 0.6 }); t.rings[2].material = this.M(on ? 0xffffff : 0x6a6a78, { emissive: on ? 0xffffff : 0 }); t.m3.scale.setScalar(on ? 1 + Math.sin(time / 90) * 0.04 : 1); }
