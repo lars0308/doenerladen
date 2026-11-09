@@ -40,15 +40,17 @@ class MenuScene extends StageScene {
     const t = UI.text(this, 640, 78, 'MÜLLALARM!', 120, { color: '#ffe15a', stroke: '#2a1a4a', strokeThickness: 20 }).setOrigin(0.5);
     this.tweens.add({ targets: t, scale: 1.04, yoyo: true, repeat: -1, duration: 1400, ease: 'Sine.inOut' });
     UI.text(this, 640, 150, 'Zwei Saugroboter · ein Haufen Chaos', 34).setOrigin(0.5);
+    const nx = Cfg.prog.next | 0, can = nx > 0 && nx < STORY_COUNT;
     this.items = [
-      { t: 'Abenteuer starten', a: () => this.go('start') },
+      ...(can ? [{ t: 'Weiter: Level ' + (nx + 1), a: () => { Sfx.play('confirm'); const go = { scene: 'Level', data: { level: nx, mode: Cfg.mode || 'normal' } }, pre = LEVELS[nx].story && LEVELS[nx].story.pre; this.scene.start(...(pre ? ['Story', { id: pre, next: go }] : ['Level', go.data])); } }] : []),
+      { t: can ? 'Neues Abenteuer' : 'Abenteuer starten', a: () => { Cfg.prog.next = 0; Cfg.save(); this.go('start'); } },
       { t: 'Minispiele', a: () => this.scene.start('Minigames') },
       { t: 'Level wählen', a: () => this.scene.start('Select') },
       { t: 'Spieler & Farben', a: () => this.go('edit') },
       { t: 'Steuerung', a: () => this.scene.start('Controls') },
     ];
     this.btn = this.items.map((it, i) => {
-      const x = 840, y = 235 + i * 80, w = 400, h = 66;
+      const x = 840, y = 195 + i * 72, w = 400, h = 62;
       const g = this.add.graphics(); const tx = UI.text(this, x + w / 2, y + h / 2, it.t, 34).setOrigin(0.5);
       const hit = this.add.rectangle(x + w / 2, y + h / 2, w, h, 0, 0).setInteractive({ useHandCursor: true });
       hit.on('pointerover', () => { this.sel = i; this.refresh(); }); hit.on('pointerdown', () => { Sfx.unlock(); it.a(); });
@@ -206,6 +208,7 @@ class SelectScene extends StageScene {
       cont.name = UI.text(this, x + w / 2 + 20, y + 22, lv.name, 27, { wordWrap: { width: w - 100 }, align: 'center' }).setOrigin(0.5, 0);
       cont.boss = UI.text(this, x + w / 2, y + h - 36, lv.boss ? 'Boss: ' + BOSS[lv.boss].title.split('–')[0].trim() : 'Bonus: ' + lv.quota + ' Müll sammeln', 20, { color: '#ffe15a' }).setOrigin(0.5);
       cont.th = UI.text(this, x + w / 2, y + 120, THEMES[lv.theme] ? THEMES[lv.theme].name : '', 24, { color: '#ffffffcc' }).setOrigin(0.5);
+      const sv = Cfg.prog.stars[this.levels[i].i]; cont.st = UI.text(this, x + w / 2, y + 160, sv === undefined ? '' : '★'.repeat(sv) + '☆'.repeat(3 - sv), 34, { color: '#ffe15a' }).setOrigin(0.5);
       const hit = this.add.rectangle(x + w / 2, y + h / 2, w, h, 0, 0).setInteractive({ useHandCursor: true });
       hit.on('pointerover', () => { this.sel = i; this.refresh(); }); hit.on('pointerdown', () => this.play());
       return cont;

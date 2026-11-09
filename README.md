@@ -34,5 +34,6 @@ deshalb läuft das Spiel auch per Doppelklick. Credits & Lizenzen: [CREDITS.md](
 ## Neu in Phase 2
 - **Springen**: senkrecht nach oben, in der Luft mit dem Stick lenkbar – auf Gegner springen = Stomp.
 - **Saugen**: Müll, Münzen, Essen, Pflanzen/Kürbisse und kleine Gegner werden in die Düse gezogen, schrumpfen und verschwinden. Große Gegner verlieren beim Saugen Leben.
-- **Kanister auf dem Rücken** (20 Teile, Kinder 24): voll = erst entleeren! Stell dich an eine **Tonne** (oder schieß in sie hinein), dort wird abgeliefert und gezählt. Super-Schuss lädt sich durch Einsaugen auf. Weniger Müll, dafür mehr Tonnen., Tonnen, Essen heilt, Power-ups (Ball, Flügel, Magnet), K.O./Wiederbeleben, Plateaus mit Sprungfeldern, Bonuslevel „Der große Müllberg“.
+- **Kanister auf dem Rücken** (20 Teile, Kinder 24) dient als Munition; Saugen geht immer, überschüssiger Müll wird zu Münzen gepresst. Super-Schuss lädt sich durch Einsaugen auf.
+- **Spielstand**: Level-Fortschritt und Sterne werden im Browser gespeichert (Menü: „Weiter: Level N“)., Tonnen, Essen heilt, Power-ups (Ball, Flügel, Magnet), K.O./Wiederbeleben, Plateaus mit Sprungfeldern, Bonuslevel „Der große Müllberg“.
 - **Scheitern**: Wenn beide K.O. gehen, liegt der Müll seit dem letzten Checkpoint wieder da.

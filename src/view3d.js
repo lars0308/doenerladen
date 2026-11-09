@@ -501,7 +501,7 @@ class View3D {
       let m = this.map.get(e);
       if (!m) {
         let o; const kind = e.kind || 'goo';
-        if (grp === s.shotG) { o = this.tm(this.foodFor(e.vis.texture.key, e.x, e.y), e.big ? 2.4 : 1.4); if (e.big) { o.traverse(q => { if (q.isMesh) { cloneMats(q); eachMat(q, mm => { if (mm.emissive) mm.emissive.setHex(0x886600); }); } }); } }
+        if (grp === s.shotG) { o = this.tm(this.foodFor(e.vis.texture.key, e.x, e.y), e.big ? 1.5 : 0.9); if (e.big) { o.traverse(q => { if (q.isMesh) { cloneMats(q); eachMat(q, mm => { if (mm.emissive) mm.emissive.setHex(0x886600); }); } }); } }
         else if (kind === 'fire') o = this.sph(0.26, 0xff8a2e, { emissive: 0xff5a10 });
         else if (kind === 'arrow') { o = new THREE.Group(); const sh = this.cyl(0.03, 0.03, 0.7, 0xcaa46a); sh.rotation.x = Math.PI / 2; o.add(sh); this.place(this.cone(0.07, 0.18, 0xdde3ea, 8), 0, 0, 0.42, o).rotation.x = Math.PI / 2; }
         else if (kind === 'bomb') o = a3clone('p:bomb', 1.4); else if (kind === 'red') o = this.sph(0.2, 0xff6a6a, { emissive: 0xaa2020 }); else o = this.sph(0.18, 0x8cf06a, { emissive: 0x2a8a20 });

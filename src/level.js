@@ -55,7 +55,6 @@ class LevelScene extends Phaser.Scene {
     def.build(this); this.ox = 0;
     this.finalize();
     this.autoLitter(def.mini ? 0 : (def.litter !== undefined ? def.litter : Math.min(150, Math.round(this.floorCount / 14))));
-    if (!def.mini) this.autoBins(Math.max(5, Math.round(this.floorCount / 200)));
     this.autoPlants(def.mini ? 0 : Math.min(45, Math.round(this.floorCount / 45)));
     this.autoFood(def.mini ? 0 : Math.max(2, Math.round(this.floorCount / 120)));
     this.autoPower(def.mini ? 0 : Math.max(3, Math.round(this.floorCount / 150)));
@@ -412,7 +411,7 @@ class LevelScene extends Phaser.Scene {
     this.killActor(e);
   }
   binHit(b) {
-    if (this.time.now - b.t0 < 120) return; b.t0 = this.time.now; this.cleaned++; this.trashGot++; this.coinCount += 2;
+    if (this.time.now - b.t0 < 120) return; b.t0 = this.time.now; this.cleaned++; this.coinCount += 2;
     Sfx.play('coin'); Sfx.play('pop'); this.burst(b.x, b.y - 30, 'star', 8, 90, 0x7dff8a); this.burst(b.x, b.y - 30, 'puff', 5, 50, 0x7dff8a);
   }
   dropCoin(x, y, n) {
@@ -735,14 +734,14 @@ class LevelScene extends Phaser.Scene {
     const range = 185, cos = Math.cos(Phaser.Math.DegToRad(50));
     if (time > p.suckSfx) { p.suckSfx = time + 120; Sfx.play('suck'); }
     const inCone = (x, y, r) => { const dx = x - mx, dy = y - my, d = Math.hypot(dx, dy); if (d < 55) return true; if (d > r) return false; return (dx * a.x + dy * a.y) / d > cos; };
-    const full = p.ammo >= p.maxAmmo;
-    const pull = (t, spd, y0 = 0) => { const d = Math.hypot(mx - t.x, my - t.y) || 1; t.suckF = Math.max(0.05, Math.min(1, 1 - d / range)); t.suckT = time; const sp = spd * dt * (1 + 1.4 * t.suckF); t.x += (mx - t.x) / d * Math.min(sp, d); t.y += (my - t.y) / d * Math.min(sp, d); return Math.hypot(mx - t.x, my - t.y); };
+    const full = false;   // saugen geht immer: was nicht mehr in den Kanister passt, wird gleich zu Münzen gepresst
+    const pull = (t, spd, y0 = 0) => { if (!t.suckT || time - t.suckT > 250) t.sucS = time; const late = time - t.sucS > 550; const d = Math.hypot(mx - t.x, my - t.y) || 1; if (late) { t.suckT = time; t.suckF = 1; t.x = mx; t.y = my; return 0; } t.suckF = Math.max(0.05, Math.min(1, 1 - d / range)); t.suckT = time; const sp = spd * dt * (1 + 1.4 * t.suckF); t.x += (mx - t.x) / d * Math.min(sp, d); t.y += (my - t.y) / d * Math.min(sp, d); return Math.hypot(mx - t.x, my - t.y); };
     for (const t of this.pickups.slice()) {
       if (!t.active || !inCone(t.x, t.y, range)) continue;
       if (full) { if (time > p.fullMsg) { p.fullMsg = time + 1600; this.toast('Tank voll!  Schieß den Müll weg (X) oder in eine Tonne', 1400); Sfx.play('empty'); } continue; }
       const d = pull(t, 520); t.setDepth(t.y);
       if (d < 22) {
-        p.ammo++; this.charge(p); (p.gens || (p.gens = [])).push(t.gen || 0); if (p.gens.length > 40) p.gens.shift(); Sfx.play('pickup'); this.logTaken('p', t); t.destroy(); this.pickups = this.pickups.filter(q => q !== t);
+        p.ammo = Math.min(p.maxAmmo, p.ammo + 1); if (!t.gen) { this.trashGot++; if (p.ammo >= p.maxAmmo && this.trashGot % 2) this.coinCount++; } this.charge(p); (p.gens || (p.gens = [])).push(t.gen || 0); if (p.gens.length > 40) p.gens.shift(); Sfx.play('pickup'); this.logTaken('p', t); t.destroy(); this.pickups = this.pickups.filter(q => q !== t);
       }
     }
     for (const c of this.coinsA.slice()) {   // Münzen werden eingesaugt und verschwinden in der Düse
@@ -764,9 +763,8 @@ class LevelScene extends Phaser.Scene {
       const c = e.cfg, small = c.walker || c.hp <= 1 || c.kamikaze || c.jumper || e.type === 'walker' || e.type === 'flyer';
       e.suckT = time;
       if (small) {
-        if (p.ammo >= p.maxAmmo) { e.suckF = 0.2; continue; }
         e.body.setVelocity(0, 0); if (pull(e, 360) < 30) {
-          p.ammo += 2; this.charge(p, 2); this.coinCount += 1; Sfx.play('gulp'); this.burst(mx, my - 20, 'star', 8, 80);
+          p.ammo = Math.min(p.maxAmmo, p.ammo + 2); this.charge(p, 2); this.trashGot += 1; this.coinCount += 1; Sfx.play('gulp'); this.burst(mx, my - 20, 'star', 8, 80);
           this.enemyList = this.enemyList.filter(q => q !== e); this.killActor(e); this.toast('Eingesaugt! Tank +2', 700);
         }
       } else {   // große Gegner: werden festgehalten und nehmen Schaden
@@ -900,8 +898,8 @@ class LevelScene extends Phaser.Scene {
     }
     for (const pw of this.powers.slice()) for (const p of this.p) if (pw.active && p.state === 'normal' && Math.hypot(p.x - pw.x, p.y - pw.y) < 38) { this.givePower(p, pw.kind); pw.destroy(); this.powers = this.powers.filter(q => q !== pw); break; }
     for (const p of this.p) if (p.state === 'normal' && p.pw && p.pw.kind === 'magnet' && time < p.pw.until) {
-      const pull = (list, ok) => { for (const t of list.slice()) { if (!t.active) continue; const d = Math.hypot(p.x - t.x, p.y - t.y); if (d > 260 || d < 2 || !ok(t)) continue; const sp = 420 * 0.016; t.x += (p.x - t.x) / d * Math.min(sp, d); t.y += (p.y - t.y) / d * Math.min(sp, d); if (d < 32) { if (list === this.pickups) { p.ammo++; Sfx.play('pickup'); this.logTaken('p', t); t.destroy(); this.pickups = this.pickups.filter(q => q !== t); } } } };
-      if (p.ammo < p.maxAmmo) pull(this.pickups, () => true); pull(this.coinsA, () => true);
+      const pull = (list, ok) => { for (const t of list.slice()) { if (!t.active) continue; const d = Math.hypot(p.x - t.x, p.y - t.y); if (d > 260 || d < 2 || !ok(t)) continue; const sp = 420 * 0.016; t.x += (p.x - t.x) / d * Math.min(sp, d); t.y += (p.y - t.y) / d * Math.min(sp, d); if (d < 32) { if (list === this.pickups) { p.ammo = Math.min(p.maxAmmo, p.ammo + 1); this.trashGot++; Sfx.play('pickup'); this.logTaken('p', t); t.destroy(); this.pickups = this.pickups.filter(q => q !== t); } } } };
+      pull(this.pickups, () => true); pull(this.coinsA, () => true);
     }
     for (const sp of this.springsA) for (const p of this.p) {
       if (p.state === 'normal' && !p.hop && !p.fly && time > sp.cd && Math.hypot(p.x - sp.x, p.y - sp.y) < 30) {
@@ -964,7 +962,7 @@ class LevelScene extends Phaser.Scene {
     }
   }
   update(time, delta) {
-    const dt = Math.min(delta, 50) / 1000; if (!this.paused && !this.done) this.deliver(time);
+    const dt = Math.min(delta, 50) / 1000;
     const n = this.nav.poll();
     for (const p of this.p) p.in = p.ctrl.read();
     if (this.done) { if (n.ok || this.p.some(p => p.in.jumpEdge)) this.next(); return; }
@@ -1027,6 +1025,7 @@ class LevelScene extends Phaser.Scene {
   finish() {
     if (this.done) return; this.done = true; Sfx.music(null); Sfx.play('win');
     for (const p of this.p) p.body.setVelocity(0, 0);
+    { const tot = this.quota || this.trashTotal, pc = tot ? 100 * this.trashGot / tot : 0; Cfg.record(this.lv, pc >= 85 ? 3 : pc >= 60 ? 2 : pc >= 30 ? 1 : 0, this.coinCount); }
     this.hudCall('sign', null); this.hudCall('finish', this.coinCount, Math.round((this.time.now - this.t0) / 1000), this.trashGot, this.trashTotal, this.cleaned);
     for (let i = 0; i < 30; i++) this.time.delayedCall(i * 40, () => this.burst(this.p[0].x + Phaser.Math.Between(-300, 300), this.p[0].y + Phaser.Math.Between(-200, 100), 'star', 3, 160));
   }
