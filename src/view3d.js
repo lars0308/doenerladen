@@ -484,3 +484,23 @@ class View3D {
     document.getElementById('three').style.display = 'none';
   }
 }
+
+// Rendert die beiden 3D-Roboter einmal als Bilder (Porträts für Menü, Story und HUD).
+function makeRobotTextures(phaserScene) {
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
+  const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true, preserveDrawingBuffer: true });
+  r.setSize(256, 256, false); r.setClearColor(0x000000, 0); r.outputEncoding = THREE.sRGBEncoding;
+  THREE.ColorManagement.legacyMode = false;
+  const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xffffff, 0xa89ad0, 1.0)); const dl = new THREE.DirectionalLight(0xffffff, 0.8); dl.position.set(-2, 4, 5); sc.add(dl);
+  const cam = new THREE.PerspectiveCamera(28, 1, 0.1, 20); cam.position.set(0.5, 0.85, 4.0); cam.lookAt(0, 0.4, 0);
+  [['knox', 0.58, 0.02], ['zippy', 0.075, 0.05]].forEach(([name, hue, ls]) => {
+    const m = THREE.SkeletonUtils.clone(A3.models.character.scene); m.scale.setScalar(1.6);
+    View3D.prototype.recolor.call({}, m, hue, ls);
+    m.rotation.y = name === 'knox' ? 0.45 : -0.45;
+    sc.add(m); r.render(sc, cam);
+    const out = document.createElement('canvas'); out.width = 256; out.height = 256; out.getContext('2d').drawImage(cv, 0, 0);
+    for (const key of [name, 'pt_' + name]) { if (phaserScene.textures.exists(key)) phaserScene.textures.remove(key); phaserScene.textures.addCanvas(key, out); }
+    sc.remove(m);
+  });
+  r.dispose();
+}

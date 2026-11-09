@@ -11,7 +11,7 @@ class HudScene extends Phaser.Scene {
     this.ammoT = [];
     for (let i = 0; i < 2; i++) {
       const x = i === 0 ? 34 : W - 190, y = H - 50;
-      this.add.image(x + 18, y, i === 0 ? 'knox' : 'zippy').setScale(0.6);
+      this.add.image(x + 22, y, i === 0 ? 'knox' : 'zippy').setScale(0.3);
       this.add.image(x + 70, y + 2, 'trash0').setScale(0.9);
       this.ammoT.push(this.add.text(x + 92, y, '×3', st(30)).setOrigin(0, 0.5));
     }

@@ -1,7 +1,7 @@
 class BootScene extends Phaser.Scene {
   constructor() { super('Boot'); }
   create() {
-    makeArt(this); makeArt2(this);
+    makeArt(this); makeArt2(this); makeRobotTextures(this);
     this.scene.start('Menu');
   }
 }
@@ -23,8 +23,8 @@ class MenuScene extends Phaser.Scene {
     this.tweens.add({ targets: sub, scale: 1.06, yoyo: true, repeat: -1, duration: 700, ease: 'Sine.inOut' });
 
     // Die beiden Helden, mit Kette verbunden
-    this.k = this.add.image(250, 580, 'knox').setScale(1.9);
-    this.z = this.add.image(1030, 580, 'zippy').setScale(1.9).setFlipX(true);
+    this.k = this.add.image(250, 560, 'knox').setScale(1.35);
+    this.z = this.add.image(1030, 560, 'zippy').setScale(1.35);
     this.chain = this.add.graphics();
     this.items = [
       { t: 'Spielen – Normal', a: () => this.start('normal') },
@@ -49,7 +49,7 @@ class MenuScene extends Phaser.Scene {
     if (n.up) { this.sel = (this.sel + this.items.length - 1) % this.items.length; Sfx.play('select'); this.refresh(); }
     if (n.down) { this.sel = (this.sel + 1) % this.items.length; Sfx.play('select'); this.refresh(); }
     if (n.ok) { Sfx.unlock(); this.items[this.sel].a(); }
-    this.k.y = 580 + Math.sin(time / 300) * 8; this.z.y = 580 + Math.sin(time / 300 + 2) * 8;
+    this.k.y = 560 + Math.sin(time / 300) * 8; this.z.y = 560 + Math.sin(time / 300 + 2) * 8;
     const g = this.chain; g.clear();
     for (let i = 0; i <= 40; i++) { const t = i / 40, x = this.k.x + 40 + (this.z.x - this.k.x - 80) * t, y = 600 + Math.sin(t * Math.PI) * 50 + Math.sin(time / 300 + t * 3) * 3; g.fillStyle(0xdfe3ea, 1); g.fillCircle(x, y, 7); g.lineStyle(3, OUT, 1); g.strokeCircle(x, y, 7); }
     const n_ = getPads().length;
